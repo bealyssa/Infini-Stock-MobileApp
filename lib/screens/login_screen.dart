@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:infini_stock/services/api_client.dart';
-import 'package:infini_stock/theme/app_theme.dart';
+import 'package:provider/provider.dart';
+import '../theme/app_theme.dart';
+import '../providers/auth_provider.dart';
+import 'home_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({Key? key}) : super(key: key);
@@ -13,52 +14,42 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _urlController = TextEditingController();
+  bool _showPassword = false;
   bool _isLoading = false;
-  String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    // Default URL for local WiFi connection
+    _urlController.text = 'http://192.168.1.2:5000/api';
+  }
 
   @override
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
+    _urlController.dispose();
     super.dispose();
   }
 
-  Future<void> _handleLogin() async {
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
-
-    try {
-      final response = await ApiClient.login(
-        _emailController.text.trim(),
-        _passwordController.text,
+  void _handleLogin(AuthProvider authProvider) async {
+    if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please fill in all fields')),
       );
+      return;
+    }
 
-      if (response.containsKey('token')) {
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('authToken', response['token']);
-        if (response.containsKey('user')) {
-          await prefs.setString('user', response['user'].toString());
-        }
+    final success = await authProvider.login(
+      _emailController.text.trim(),
+      _passwordController.text,
+      _urlController.text.trim(),
+    );
 
-        if (mounted) {
-          Navigator.of(context).pushReplacementNamed('/home');
-        }
-      } else {
-        setState(() {
-          _errorMessage = response['message'] ?? 'Login failed';
-        });
-      }
-    } catch (e) {
-      setState(() {
-        _errorMessage = 'Login error: ${e.toString()}';
-      });
-    } finally {
+    if (success) {
       if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
+        Navigator.of(context).pushReplacementNamed('/home');
       }
     }
   }
@@ -66,249 +57,187 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.bgDark,
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(height: 40),
-              // Logo and Title
-              Center(
-                child: Column(
-                  children: [
-                    Container(
-                      width: 80,
-                      height: 80,
-                      decoration: BoxDecoration(
-                        color: AppTheme.lavender600,
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: const Icon(
-                        Icons.inventory_2,
-                        size: 48,
-                        color: Colors.white,
+      backgroundColor: AppTheme.primaryBg,
+      body: Consumer<AuthProvider>(
+        builder: (context, authProvider, child) {
+          return SafeArea(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  SizedBox(height: MediaQuery.of(context).size.height * 0.1),
+                  // Logo/Title
+                  Center(
+                    child: Column(
+                      children: [
+                        Text(
+                          '📦',
+                          style: Theme.of(context).textTheme.displayLarge,
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'Infini-Stock',
+                          style: Theme.of(context)
+                              .textTheme
+                              .headlineLarge
+                              ?.copyWith(
+                                color: AppTheme.lavender600,
+                                fontWeight: FontWeight.bold,
+                              ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Asset Tracking & Inventory',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ],
+                    ),
+                  ),
+                  SizedBox(height: MediaQuery.of(context).size.height * 0.05),
+                  // Email Input
+                  TextField(
+                    controller: _emailController,
+                    decoration: InputDecoration(
+                      hintText: 'Email',
+                      prefixIcon: const Icon(Icons.email_outlined),
+                      prefixIconColor: AppTheme.lavender500,
+                    ),
+                    keyboardType: TextInputType.emailAddress,
+                    style: const TextStyle(color: AppTheme.textPrimary),
+                  ),
+                  const SizedBox(height: 16),
+                  // Password Input
+                  TextField(
+                    controller: _passwordController,
+                    decoration: InputDecoration(
+                      hintText: 'Password',
+                      prefixIcon: const Icon(Icons.lock_outline),
+                      prefixIconColor: AppTheme.lavender500,
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _showPassword
+                              ? Icons.visibility
+                              : Icons.visibility_off,
+                        ),
+                        onPressed: () {
+                          setState(() => _showPassword = !_showPassword);
+                        },
                       ),
                     ),
-                    const SizedBox(height: 16),
-                    const Text(
-                      'Infini-Stock',
+                    obscureText: !_showPassword,
+                    style: const TextStyle(color: AppTheme.textPrimary),
+                  ),
+                  const SizedBox(height: 16),
+                  // API URL Input
+                  ExpansionTile(
+                    title: const Text(
+                      'Connection Settings',
                       style: TextStyle(
-                        fontSize: 28,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'QR Inventory Management',
-                      style: TextStyle(
+                        color: AppTheme.textSecondary,
                         fontSize: 14,
-                        color: AppTheme.textGraySecondary,
                       ),
                     ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 48),
-
-              // Email Field
-              Text(
-                'Email',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: _emailController,
-                enabled: !_isLoading,
-                decoration: InputDecoration(
-                  hintText: 'Enter your email',
-                  filled: true,
-                  fillColor: AppTheme.bgDarker,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(color: AppTheme.borderLavender),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(color: AppTheme.borderLavender),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(
-                      color: AppTheme.lavender600,
-                      width: 2,
-                    ),
-                  ),
-                  hintStyle: TextStyle(color: AppTheme.textGraySecondary),
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 12,
-                  ),
-                ),
-                style: const TextStyle(color: Colors.white),
-                keyboardType: TextInputType.emailAddress,
-              ),
-              const SizedBox(height: 24),
-
-              // Password Field
-              Text(
-                'Password',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: _passwordController,
-                enabled: !_isLoading,
-                obscureText: true,
-                decoration: InputDecoration(
-                  hintText: 'Enter your password',
-                  filled: true,
-                  fillColor: AppTheme.bgDarker,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(color: AppTheme.borderLavender),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(color: AppTheme.borderLavender),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(
-                      color: AppTheme.lavender600,
-                      width: 2,
-                    ),
-                  ),
-                  hintStyle: TextStyle(color: AppTheme.textGraySecondary),
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 12,
-                  ),
-                ),
-                style: const TextStyle(color: Colors.white),
-              ),
-              const SizedBox(height: 8),
-              Align(
-                alignment: Alignment.centerRight,
-                child: TextButton(
-                  onPressed: _isLoading ? null : () {},
-                  child: Text(
-                    'Forgot Password?',
-                    style: TextStyle(
-                      color: AppTheme.lavender600,
-                      fontSize: 12,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 32),
-
-              // Error Message
-              if (_errorMessage != null)
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  margin: const EdgeInsets.only(bottom: 16),
-                  decoration: BoxDecoration(
-                    color: Colors.red.withOpacity(0.1),
-                    border: Border.all(color: Colors.red),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    _errorMessage!,
-                    style: const TextStyle(
-                      color: Colors.red,
-                      fontSize: 13,
-                    ),
-                  ),
-                ),
-
-              // Login Button
-              SizedBox(
-                width: double.infinity,
-                height: 48,
-                child: ElevatedButton(
-                  onPressed: _isLoading ? null : _handleLogin,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.lavender600,
-                    disabledBackgroundColor: AppTheme.lavender600.withOpacity(0.5),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  child: _isLoading
-                      ? SizedBox(
-                          height: 24,
-                          width: 24,
-                          child: CircularProgressIndicator(
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              Colors.white.withOpacity(0.8),
-                            ),
-                            strokeWidth: 2,
-                          ),
-                        )
-                      : const Text(
-                          'Login',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
+                    childrenPadding: const EdgeInsets.all(12),
+                    children: [
+                      TextField(
+                        controller: _urlController,
+                        decoration: InputDecoration(
+                          hintText: 'Backend URL',
+                          helperText: 'Example: http://192.168.1.100:5000/api',
+                          prefixIcon: const Icon(Icons.link),
+                          prefixIconColor: AppTheme.lavender500,
+                        ),
+                        style: const TextStyle(color: AppTheme.textPrimary),
+                      ),
+                      const SizedBox(height: 8),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Padding(
+                          padding: const EdgeInsets.only(left: 16, top: 8),
+                          child: Text(
+                            '💡 Use your PC IP address for WiFi connection\n'
+                            'Windows: Open cmd and run "ipconfig"',
+                            style: Theme.of(context).textTheme.bodySmall,
                           ),
                         ),
-                ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+                  // Error Message
+                  if (authProvider.error != null)
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: AppTheme.statusError.withOpacity(0.1),
+                        border: Border.all(color: AppTheme.statusError),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.error_outline,
+                            color: AppTheme.statusError,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              authProvider.error!,
+                              style: const TextStyle(
+                                color: AppTheme.statusError,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  const SizedBox(height: 24),
+                  // Login Button
+                  ElevatedButton(
+                    onPressed: authProvider.isLoading
+                        ? null
+                        : () => _handleLogin(authProvider),
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                    ),
+                    child: authProvider.isLoading
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(
+                              valueColor: AlwaysStoppedAnimation(
+                                AppTheme.textPrimary,
+                              ),
+                              strokeWidth: 2,
+                            ),
+                          )
+                        : const Text('Sign In'),
+                  ),
+                  const SizedBox(height: 24),
+                  // Footer
+                  Center(
+                    child: Text(
+                      'Enterprise Asset Tracking Solution',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Center(
+                    child: Text(
+                      'v1.0.0',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: AppTheme.textHint,
+                          ),
+                    ),
+                  ),
+                ],
               ),
-
-              const SizedBox(height: 24),
-
-              // Demo Credentials Info
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: AppTheme.borderLavender.withOpacity(0.1),
-                  border: Border.all(color: AppTheme.borderLavender),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Demo Credentials:',
-                      style: TextStyle(
-                        color: AppTheme.lavender300,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 12,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Email: admin@infini.local',
-                      style: TextStyle(
-                        color: AppTheme.textGraySecondary,
-                        fontSize: 12,
-                      ),
-                    ),
-                    Text(
-                      'Password: Password@123',
-                      style: TextStyle(
-                        color: AppTheme.textGraySecondary,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
+            ),
+          );
+        },
       ),
     );
   }

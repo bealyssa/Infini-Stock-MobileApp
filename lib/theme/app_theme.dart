@@ -1,147 +1,189 @@
 import 'package:flutter/material.dart';
 
 class AppTheme {
-  // Dark Lavender Palette
-  static const Color bgDark = Color(0xFF171717);
-  static const Color bgDarker = Color(0xFF0F0A1A);
-  static const Color bgLavender = Color(0xFF1A0F2E);
-  
-  static const Color lavender600 = Color(0xFF9333EA);
-  static const Color lavender500 = Color(0xFFA78BFA);
-  static const Color lavender400 = Color(0xFFC4B5FD);
-  static const Color lavender300 = Color(0xFFDDD6FE);
-  static const Color lavender950 = Color(0xFF581C87);
-  
-  static const Color borderLavender = Color(0xFF3D2E5C);
-  static const Color borderDarker = Color(0xFF2D1F4A);
-  
-  static const Color textWhite = Color(0xFFFFFFFF);
-  static const Color textGray = Color(0xFFE5E7EB);
-  static const Color textGraySecondary = Color(0xFF9CA3AF);
-  static const Color textGrayTertiary = Color(0xFF6B7280);
+  // Dark Lavender Colors (matching web app)
+  static const Color primaryBg = Color(0xFF171717); // Main background
+  static const Color darkBg = Color(0xFF0f0a1a); // Darker variant
+  static const Color sidebarBg = Color(0xFF1a0f2e); // Sidebar background
+  static const Color headerBg = Color(0xFF1a0f2e); // Header background
+
+  // Lavender Accents
+  static const Color lavender600 = Color(0xFF9333ea); // Primary button
+  static const Color lavender700 = Color(0xFF7e22ce); // Hover state
+  static const Color lavender500 = Color(0xFFa78bfa); // Light highlights
+  static const Color lavender300 = Color(0xFFddd6fe); // Text accents
+
+  // Borders & Dividers
+  static const Color borderDark = Color(0xFF3d2e5c); // Lavender-tinted border
+  static const Color borderLight = Color(0xFF2d2d2d); // Light border
+
+  // Text Colors
+  static const Color textPrimary = Color(0xFFffffff); // White
+  static const Color textSecondary = Color(0xFFe5e7eb); // Light gray
+  static const Color textTertiary = Color(0xFF9ca3af); // Medium gray
+  static const Color textHint = Color(0xFF6b7280); // Dark gray
+
+  // Status Colors
+  static const Color statusSuccess = Color(0xFF10b981); // Green
+  static const Color statusWarning = Color(0xFFf59e0b); // Amber
+  static const Color statusError = Color(0xFFef4444); // Red
+  static const Color statusInfo = Color(0xFF3b82f6); // Blue
 
   static ThemeData get lightTheme {
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.dark,
-      scaffoldBackgroundColor: bgDark,
       primaryColor: lavender600,
-      appBarTheme: const AppBarTheme(
-        backgroundColor: bgLavender,
+      scaffoldBackgroundColor: primaryBg,
+
+      // AppBar theme
+      appBarTheme: AppBarTheme(
+        backgroundColor: headerBg,
+        foregroundColor: textPrimary,
         elevation: 0,
         centerTitle: false,
-        titleTextStyle: TextStyle(
-          color: textWhite,
+        titleTextStyle: const TextStyle(
+          color: textPrimary,
           fontSize: 20,
           fontWeight: FontWeight.bold,
         ),
       ),
-      colorScheme: const ColorScheme.dark(
-        primary: lavender600,
-        secondary: lavender500,
-        surface: bgDark,
-        surfaceContainer: bgDarker,
-        error: Colors.red,
-        onPrimary: textWhite,
-        onSecondary: textWhite,
-        onSurface: textWhite,
-      ),
-      textTheme: const TextTheme(
-        displayLarge: TextStyle(
-          color: textWhite,
-          fontSize: 32,
-          fontWeight: FontWeight.bold,
-        ),
-        displayMedium: TextStyle(
-          color: textWhite,
-          fontSize: 28,
-          fontWeight: FontWeight.bold,
-        ),
-        titleLarge: TextStyle(
-          color: textWhite,
-          fontSize: 20,
-          fontWeight: FontWeight.bold,
-        ),
-        titleMedium: TextStyle(
-          color: textWhite,
-          fontSize: 16,
-          fontWeight: FontWeight.w600,
-        ),
-        bodyLarge: TextStyle(
-          color: textGray,
-          fontSize: 16,
-        ),
-        bodyMedium: TextStyle(
-          color: textGraySecondary,
-          fontSize: 14,
-        ),
-        bodySmall: TextStyle(
-          color: textGrayTertiary,
-          fontSize: 12,
-        ),
-        labelSmall: TextStyle(
-          color: textGraySecondary,
-          fontSize: 12,
-        ),
-      ),
+
+      // Card theme
       cardTheme: CardThemeData(
-        color: bgDark,
+        color: primaryBg,
+        surfaceTintColor: borderDark,
         elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
-          side: const BorderSide(color: borderLavender, width: 1),
+          side: const BorderSide(color: borderDark, width: 1),
         ),
       ),
+
+      // Input decoration theme
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: bgDark,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        fillColor: primaryBg,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(8),
-          borderSide: const BorderSide(color: borderLavender),
+          borderSide: const BorderSide(color: borderDark),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(8),
-          borderSide: const BorderSide(color: borderLavender),
+          borderSide: const BorderSide(color: borderDark),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(8),
           borderSide: const BorderSide(color: lavender600, width: 2),
         ),
-        hintStyle: const TextStyle(color: textGrayTertiary),
-        labelStyle: const TextStyle(color: textGraySecondary),
+        hintStyle: const TextStyle(color: textHint),
+        labelStyle: const TextStyle(color: textSecondary),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       ),
+
+      // Button theme
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           backgroundColor: lavender600,
-          foregroundColor: textWhite,
-          elevation: 0,
+          foregroundColor: textPrimary,
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
+          textStyle: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+          ),
         ),
       ),
-      outlinedButtonTheme: OutlinedButtonThemeData(
-        style: OutlinedButton.styleFrom(
-          side: const BorderSide(color: borderLavender),
-          foregroundColor: lavender400,
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        ),
-      ),
+
+      // Text button theme
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
-          foregroundColor: lavender400,
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          foregroundColor: lavender600,
+          textStyle: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+          ),
         ),
       ),
+
+      // Text themes
+      textTheme: const TextTheme(
+        displayLarge: TextStyle(
+          color: textPrimary,
+          fontSize: 32,
+          fontWeight: FontWeight.bold,
+        ),
+        displayMedium: TextStyle(
+          color: textPrimary,
+          fontSize: 28,
+          fontWeight: FontWeight.bold,
+        ),
+        headlineLarge: TextStyle(
+          color: textPrimary,
+          fontSize: 24,
+          fontWeight: FontWeight.bold,
+        ),
+        headlineMedium: TextStyle(
+          color: textPrimary,
+          fontSize: 20,
+          fontWeight: FontWeight.bold,
+        ),
+        bodyLarge: TextStyle(
+          color: textPrimary,
+          fontSize: 16,
+        ),
+        bodyMedium: TextStyle(
+          color: textSecondary,
+          fontSize: 14,
+        ),
+        bodySmall: TextStyle(
+          color: textTertiary,
+          fontSize: 12,
+        ),
+        labelLarge: TextStyle(
+          color: textPrimary,
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+
+      // List tile theme
+      listTileTheme: ListTileThemeData(
+        textColor: textPrimary,
+        iconColor: lavender500,
+        titleTextStyle: const TextStyle(
+          color: textPrimary,
+          fontSize: 16,
+          fontWeight: FontWeight.w500,
+        ),
+        subtitleTextStyle: const TextStyle(
+          color: textTertiary,
+          fontSize: 12,
+        ),
+      ),
+
+      // Divider theme
+      dividerTheme: DividerThemeData(
+        color: borderDark,
+        thickness: 1,
+      ),
+
+      // Chip theme
       chipTheme: ChipThemeData(
-        backgroundColor: borderDarker,
-        deleteIconColor: textGraySecondary,
-        disabledColor: borderLavender,
+        backgroundColor: primaryBg,
         selectedColor: lavender600,
-        labelStyle: const TextStyle(color: textWhite),
-        side: const BorderSide(color: lavender600),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        disabledColor: textHint,
+        labelStyle: const TextStyle(color: textPrimary),
+        secondaryLabelStyle: const TextStyle(color: textPrimary),
+        brightness: Brightness.dark,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: const BorderSide(color: borderDark),
+        ),
       ),
     );
   }

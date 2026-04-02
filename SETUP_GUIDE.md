@@ -1,402 +1,274 @@
-# Flutter Mobile App Setup Guide
+# Infini-Stock Mobile App Setup Guide
 
-Complete step-by-step guide to set up and run the Infini-Stock Flutter mobile app.
+## 📋 Prerequisites
 
-## Table of Contents
-1. [Prerequisites](#prerequisites)
-2. [Flutter Installation](#flutter-installation)
-3. [Project Setup](#project-setup)
-4. [Running the App](#running-the-app)
-5. [Building for Distribution](#building-for-distribution)
-6. [Troubleshooting](#troubleshooting)
+- **Flutter SDK**: 3.0.0 or higher
+- **Dart**: Latest version
+- **Device/Emulator**: Android 8.0+ or iOS 12.0+
+- **Backend Server**: Running on local IP (http://192.168.x.x:5000)
 
-## Prerequisites
+## 🚀 Quick Start
 
-### System Requirements
-- **Windows**: Windows 10 or later
-- **macOS**: macOS 10.13 (High Sierra) or later
-- **Linux**: Ubuntu 18.04 or later
-
-### Required Tools
-- Git (for version control)
-- Android Studio (for Android development)
-- Xcode (for iOS development on macOS)
-- A text editor or IDE (VS Code, Android Studio, IntelliJ)
-
-## Flutter Installation
-
-### Step 1: Download Flutter SDK
-
-1. Visit [Flutter Official Website](https://flutter.dev/docs/get-started/install)
-2. Download the appropriate version for your OS
-3. Extract to a preferred location (e.g., `C:\flutter` on Windows or `~/flutter` on macOS/Linux)
-
-### Step 2: Update PATH
+### 1. Get Your PC IP Address
 
 **Windows:**
-1. Press `Win + X` and select "System"
-2. Go to "Advanced system settings"
-3. Click "Environment Variables"
-4. Under "User variables", click "New"
-5. Variable name: `FLUTTER_HOME`, Value: `C:\flutter` (your extraction path)
-6. Under "System variables", select `Path` and add `%FLUTTER_HOME%\bin`
-7. Click OK and restart your terminal
+```cmd
+ipconfig
+```
+Look for "IPv4 Address" (usually starts with 192.168.x.x)
 
-**macOS/Linux:**
+**Mac/Linux:**
 ```bash
-export PATH="${PATH}:$HOME/flutter/bin"
+ifconfig
 ```
 
-Add this to your `~/.zshrc`, `~/.bashrc`, or `~/.bash_profile` file and run `source ~/.zshrc`.
+### 2. Configure Backend Connection
 
-### Step 3: Verify Installation
-
-```bash
-flutter doctor
+Update the API URL in `lib/services/api_client.dart`:
+```dart
+_baseUrl = 'http://YOUR_IP:5000/api';
 ```
 
-This command will show:
-- Flutter version
-- Dart version
-- Android toolchain status
-- iOS toolchain status (macOS only)
+Or use the app's Login screen to configure it dynamically.
 
-Address any issues shown by `flutter doctor`.
-
-## Project Setup
-
-### Step 1: Clone the Repository
+### 3. Run the App
 
 ```bash
-# Navigate to desired location
-cd path/to/your/workspace
-
-# Clone the full project or just navigate to the mobile-app folder if already cloned
-cd Infini-Stock/mobile-app
-```
-
-### Step 2: Install Dependencies
-
-```bash
-# Get all Flutter dependencies
+# Get dependencies
 flutter pub get
 
-# For native dependencies (Android)
-cd android
-./gradlew build
-cd ..
-
-# For native dependencies (iOS) - macOS only
-cd ios
-pod install
-cd ..
-```
-
-### Step 3: Verify Setup
-
-```bash
-flutter doctor -v
-```
-
-Ensure you see:
-- ✓ Flutter SDK
-- ✓ Dart SDK
-- ✓ Android toolchain
-- ✓ Connected devices (or emulator ready)
-
-## Running the App
-
-### Option 1: Using Physical Device
-
-**Android:**
-1. Enable Developer Mode: Settings > About > tap Build Number 7 times
-2. Enable USB Debugging: Settings > Developer options > USB Debugging
-3. Connect device via USB
-4. Run:
-   ```bash
-   flutter run
-   ```
-
-**iOS:**
-1. Connect device via USB/Lightning
-2. Run:
-   ```bash
-   flutter run
-   ```
-
-### Option 2: Using Emulator
-
-**Android Emulator:**
-```bash
-# List available emulators
-flutter emulators
-
-# Launch emulator
-flutter emulators --launch emulator_name
-
-# Or create new emulator through Android Studio
-
-# Run app in emulator
+# Run on emulator/device
 flutter run
+
+# Run with verbose output for debugging
+flutter run -v
 ```
 
-**iOS Simulator (macOS only):**
+## 🏗️ Project Structure
+
+```
+lib/
+├── main.dart                 # App entry point
+├── theme/
+│   └── app_theme.dart        # Dark Lavender theme (matching web)
+├── models/
+│   ├── monitor_model.dart    # Monitor data model
+│   ├── unit_model.dart       # Unit data model
+│   ├── activity_log_model.dart # Activity log model
+│   └── user_model.dart       # User data model
+├── services/
+│   └── api_client.dart       # Dio HTTP client with local IP support
+├── providers/
+│   ├── auth_provider.dart    # Authentication state management
+│   ├── monitor_provider.dart # Monitors data management
+│   ├── unit_provider.dart    # Units data management
+│   └── activity_log_provider.dart # Activity logs management
+└── screens/
+    ├── login_screen.dart     # Login & connection setup
+    └── home_screen.dart      # Main app with 4 tabs
+```
+
+## 🎨 Design System
+
+### Colors (Dark Lavender Theme)
+- **Primary Background**: #171717
+- **Sidebar Background**: #1a0f2e
+- **Primary Accent**: #9333ea (Lavender)
+- **Border Color**: #3d2e5c
+- **Header Background**: #2d1f4a
+
+### Screens
+1. **Dashboard** - Overview with stats and recent activity
+2. **Monitors** - List and manage monitoring devices
+3. **Units** - List and manage system units
+4. **Activity Logs** - Complete activity history
+
+## 🔐 Authentication Flow
+
+1. Login with email/password
+2. Configure backend IP (or use default)
+3. App stores JWT token locally
+4. Token automatically included in API requests
+5. Logout clears token and returns to login
+
+## 📱 Features
+
+### ✅ Implemented
+- Dark Lavender theme matching web app
+- Login/Authentication with token management
+- Dashboard with stats and recent activity
+- Monitor list view with status badges
+- Unit list view with status badges
+- Activity logs with filtering
+- Dynamic backend IP configuration
+- Persistent token storage
+
+### 🚧 Next Steps
+- QR code scanning functionality
+- QR code generation/display
+- Asset swap/move operations
+- Maintenance status updates
+- Search and filtering
+- Offline mode with local caching
+- Real-time updates via WebSocket
+
+## 📡 Backend API Endpoints
+
+The app connects to these endpoints:
+
+```
+POST   /api/auth/login              # Login
+GET    /api/monitors                # List monitors
+POST   /api/monitors                # Create monitor
+PATCH  /api/monitors/:id            # Update monitor
+DELETE /api/monitors/:id            # Delete monitor
+
+GET    /api/units                   # List units
+POST   /api/units                   # Create unit
+PATCH  /api/units/:id               # Update unit
+DELETE /api/units/:id               # Delete unit
+
+GET    /api/logs                    # List activity logs
+POST   /api/logs                    # Create activity log
+
+POST   /api/qr/generate             # Generate QR code
+POST   /api/qr/scan                 # Scan QR code
+
+GET    /api/admin/users             # List users
+POST   /api/admin/users             # Create user
+DELETE /api/admin/users/:id         # Delete user
+```
+
+## 🖥️ Development Tips
+
+### Debugging
 ```bash
-# Start simulator
-open -a Simulator
+# Enable debug logging
+flutter run -v
 
-# Run app
-flutter run
+# Inspect widget tree
+flutter devtools
 ```
 
-### Option 3: Running on Web (Experimental)
+### Hot Reload
+- Press `r` in terminal after code changes
+- Press `R` for full restart
+
+### Testing API Connection
+1. Open Login screen
+2. Expand "Connection Settings"
+3. Enter your PC IP: `http://192.168.x.x:5000/api`
+4. Try login with test credentials
+
+### Emulator vs Physical Device
+- **Emulator**: Use `http://localhost:5000/api` (if backend on same PC)
+- **Physical Device**: Use `http://192.168.x.x:5000/api` (WiFi network)
+
+## 📦 Dependencies Overview
+
+- **flutter_provider**: State management
+- **dio**: HTTP client with interceptors
+- **qr_flutter**: QR code generation
+- **mobile_scanner**: QR code scanning
+- **shared_preferences**: Local token storage
+- **sqflite**: Local database (future use)
+- **google_fonts**: Typography
+
+## 🐛 Troubleshooting
+
+### Connection Refused
+- Check backend is running: `npm start` (backend directory)
+- Verify PC IP is correct (not 127.0.0.1)
+- Ensure phone is on same WiFi network
+- Firewall may block port 5000 - check Windows Defender settings
+
+### "Provider not found" Error
+- Ensure all providers are wrapped in MultiProvider at main.dart
+- Check imports are correct for all providers
+
+### QR Scanner Not Working
+- Grant camera permissions in app settings
+- Some Android 6-7 devices need runtime permissions
+
+### Token Expiration
+- App will clear token and return to login
+- Login again to get new token
+
+## 📚 Code Example: Adding New Data
+
+### Creating a Monitor
+```dart
+final success = await context.read<MonitorProvider>()
+    .createMonitor('Device XYZ', 'QR123456', 'active');
+
+if (success) {
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(content: Text('Monitor created!')),
+  );
+}
+```
+
+### Fetching Activity Logs
+```dart
+await context.read<ActivityLogProvider>().fetchActivityLogs();
+final logs = context.read<ActivityLogProvider>().logs;
+```
+
+## 🔄 State Management Pattern
+
+Using Provider for reactive updates:
+
+```dart
+Consumer<MonitorProvider>(
+  builder: (context, monitorProvider, _) {
+    return ListView.builder(
+      itemCount: monitorProvider.monitors.length,
+      itemBuilder: (context, index) {
+        return MonitorTile(
+          monitor: monitorProvider.monitors[index],
+        );
+      },
+    );
+  },
+)
+```
+
+## 📝 Git Workflow
 
 ```bash
-flutter run -d chrome
+# Create feature branch
+git checkout -b feature/qr-scanning
+
+# Make changes and test
+flutter test
+
+# Commit and push
+git add .
+git commit -m "feat: add QR scanning"
+git push origin feature/qr-scanning
 ```
 
-## Running the App with Different Modes
+## 🚢 Deployment
 
-### Development Mode (Default)
-```bash
-flutter run
-```
-- Includes debugging
-- Hot reload enabled
-- Larger app size
-
-### Profile Mode (Performance Testing)
-```bash
-flutter run --profile
-```
-- Optimizations enabled
-- Debugging still available
-- Good for performance testing
-
-### Release Mode (Production)
-```bash
-flutter run --release
-```
-- Full optimizations
-- No debugging
-- Smallest app size
-- Production-ready
-
-## Hot Reload & Hot Restart
-
-Once the app is running:
-
-**Hot Reload** (preserves state):
-- Press `r` in terminal
-- Fast refresh of UI changes
-
-**Hot Restart** (resets state):
-- Press `R` in terminal
-- Full app restart
-
-**Stop App:**
-- Press `q` in terminal
-
-## Building for Distribution
-
-### Android APK
-
-**Debug APK:**
-```bash
-flutter build apk --debug
-# Output: build/app/outputs/apk/debug/app-debug.apk
-```
-
-**Release APK:**
+### Android Build
 ```bash
 flutter build apk --release
 # Output: build/app/outputs/apk/release/app-release.apk
 ```
 
-**Android App Bundle (for Google Play):**
-```bash
-flutter build appbundle --release
-# Output: build/app/outputs/bundle/release/app-release.aab
-```
-
-### iOS App
-
-**iOS build:**
+### iOS Build
 ```bash
 flutter build ios --release
-# Output: build/ios/iphoneos/Runner.app
 ```
 
-To generate IPA:
-```bash
-flutter build ios --release
+## 📞 Support
 
-cd build/ios/iphoneos
-xcodebuild -exportArchive \
-  -archivePath Runner.xcarchive \
-  -exportOptionsPlist ExportOptions.plist \
-  -exportPath .
-```
-
-## Troubleshooting
-
-### Issue: "flutter not recognized"
-**Solution:**
-- Restart terminal/IDE after PATH changes
-- Verify `flutter pub get` ran successfully
-- Check Flutter installation path
-
-### Issue: "No connected devices found"
-**Solution:**
-- For physical device: Enable USB Debugging + reconnect
-- For emulator: `flutter emulators --launch <name>`
-- Run `flutter devices` to list available devices
-
-### Issue: "Gradle build failed"
-**Solution:**
-```bash
-cd android
-./gradlew clean
-./gradlew build
-cd ..
-flutter clean
-flutter pub get
-```
-
-### Issue: "CocoaPods error" (iOS)
-**Solution:**
-```bash
-cd ios
-rm -rf Pods
-rm Podfile.lock
-pod install
-cd ..
-flutter clean
-flutter pub get
-```
-
-### Issue: "API connection errors"
-**Solution:**
-1. Verify backend server is running: `http://localhost:5000`
-2. Check API base URL in `lib/services/api_client.dart`
-3. For physical device: Update API URL to use actual server IP instead of localhost
-
-### Issue: "App crashes on startup"
-**Solution:**
-- Check logs: `flutter run -v`
-- Clear app data: Device Settings > Apps > Infini-Stock > Storage > Clear Data
-- Rebuild: `flutter clean && flutter pub get && flutter run`
-
-### Issue: "SharedPreferences empty after restart"
-**Solution:**
-- Data is persisted automatically
-- Check if app has storage permissions
-- On Android 11+: May need to request runtime permissions
-
-## Development Workflow
-
-### Daily Development
-```bash
-# 1. Start emulator/device
-flutter emulators --launch emulator_name
-
-# 2. Run app
-flutter run
-
-# 3. Edit code and use hot reload (r)
-
-# 4. When done
-# Press q to stop
-```
-
-### Before Committing
-```bash
-# Format code
-dart format lib/
-
-# Analyze code
-flutter analyze
-
-# Run tests
-flutter test
-```
-
-### Clean Build
-```bash
-flutter clean
-flutter pub get
-flutter run --no-fast-start
-```
-
-## Performance Monitoring
-
-### Frame Rate
-```bash
-flutter run --profile
-# Press 't' in terminal to toggle frame info
-```
-
-### Memory Usage
-```bash
-flutter run --profile
-# Use DevTools from terminal output
-```
-
-### Building DevTools
-```bash
-flutter pub global activate devtools
-devtools
-```
-
-## Next Steps
-
-1. **Run the app** - Complete setup and launch
-2. **Test login** - Use demo credentials from README
-3. **Explore screens** - Navigate through all pages
-4. **Test on device** - Verify on actual hardware
-5. **Customize API** - Update API base URL if needed
-6. **Build for distribution** - When ready to release
-
-## Getting Help
-
-If you encounter issues:
-
-1. Check Flutter documentation: https://flutter.dev/docs
-2. Search Stack Overflow: https://stackoverflow.com/questions/tagged/flutter
-3. Check GitHub issues
-4. Run `flutter doctor -v` for detailed diagnostics
-
-## Useful Commands Reference
-
-```bash
-# General
-flutter doctor              # Check environment
-flutter upgrade            # Update Flutter
-flutter pub get            # Install dependencies
-
-# Running
-flutter run                # Run on connected device
-flutter run -v             # Verbose output
-flutter run --release      # Release mode
-
-# Building
-flutter build apk          # Build Android APK
-flutter build appbundle    # Build Android Bundle
-flutter build ios          # Build iOS app
-flutter clean              # Clean build artifacts
-
-# Development
-dart format lib/           # Format code
-flutter analyze            # Analyze code
-flutter test               # Run tests
-flutter pub outdated       # Check outdated packages
-
-# Device Management
-flutter devices            # List connected devices
-flutter emulators          # List emulators
-flutter emulators --launch name  # Start emulator
-```
+- Check error logs: `flutter run -v`
+- Review API responses in Dio interceptor logs
+- Verify backend connectivity with Postman
 
 ---
 
-**Need more help?** Refer to the main [README.md](README.md) for app features and the [Flutter documentation](https://flutter.dev).
+**Version**: 1.0.0  
+**Last Updated**: 2024  
+**Theme**: Dark Lavender (matching web app #171717, #1a0f2e, #9333ea)
