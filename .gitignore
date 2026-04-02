@@ -1,0 +1,127 @@
+# Flutter/Dart/Pub files
+**/doc/api/
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+/build/
+pubspec.lock
+
+# iOS/macOS
+**/ios/**/*.mode1v3
+**/ios/**/*.mode2v3
+**/ios/**/*.moved-aside
+**/ios/**/*.pbxuser
+**/ios/**/*.perspectivev3
+**/ios/**/*sync/
+**/ios/**/.sconsign.dblite
+**/ios/**/.tags*
+**/ios/**/.vagrant/
+**/ios/**/DerivedData/
+**/ios/**/Icon?
+**/ios/**/Icon??
+**/ios/**/Icon???
+**/ios/**/Icon????
+**/ios/**/Icon?????
+**/ios/**/Icon??????????
+**/ios/**/.idea/
+**/ios/**/*.hmap
+**/ios/**/*.ipa
+**/ios/**/.clang-format
+**/ios/**/Flutter/Flutter.framework
+**/ios/**/Flutter/Flutter.podspec
+**/ios/**/Flutter/Generated.xcconfig
+**/ios/**/Flutter/ephemeral/
+**/ios/**/Flutter/app.flx
+**/ios/**/Flutter/app.zip
+**/ios/**/Flutter/app.bundle
+**/ios/**/Flutter/.last_build_id
+**/ios/**/.symlinks/
+**/ios/**/.dart_tool/
+**/ios/**/.last_build_id
+**/ios/**/.packages
+**/ios/**/.pub-cache/
+**/ios/**/.pub/
+**/ios/**/build/
+**/ios/**/flutter_assets/
+**/ios/**/GeneratedPluginRegistrant.*
+
+# Android/Gradle/Maven
+**/android/app/debug
+**/android/app/profile
+**/android/app/release
+**/android/app/outputs
+**/android/app/.gradle/
+**/android/app/local.properties
+**/android/**/.gradle/
+**/android/**/.idea/
+**/android/**/local.properties
+**/android/**/GeneratedPluginRegistrant.java
+**/android/**/gradlew
+**/android/**/gradlew.bat
+**/android/**/gradle-wrapper.jar
+**/android/**/.gradle/
+
+# Coverage
+coverage/
+.coverage
+
+# Exceptions to above rules.
+!/packages/flutter_tools/test/data/dart_dependencies_test/**/.packages
+!/dev/ci/**/.packages
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+*.iml
+*.lock
+*.sublime-workspace
+*.sublime-project
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Generated files
+*.g.dart
+*.freezed.dart
+*.config.dart
+
+# OS specific
+.DS_Store
+Thumbs.db
+*.log
+
+# Sensitive files
+.google-services.json
+GoogleService-Info.plist
+local.properties
+secrets.json
+
+# Test coverage
+.nyc_output/
+*.lcov
+
+# Pod related files
+Pods/
+Podfile.lock
+.symlinks/
+
+# Mac
+.AppleDouble
+.LSOverride
+*.o
+*.d
+*_platform.c
+
+# Platform-specific directories
+windows/flutter/ephemeral/
+linux/flutter/ephemeral/
+web/packages/
