@@ -39,6 +39,9 @@ dependencies:
   # Logging
   logger: ^2.0.0
 
+  # Charts (dashboard)
+  fl_chart: ^0.69.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

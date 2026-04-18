@@ -1,12 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:intl/intl.dart';
+import 'dart:async';
 import '../theme/app_theme.dart';
 import '../providers/auth_provider.dart';
 import '../providers/monitor_provider.dart';
 import '../providers/unit_provider.dart';
 import '../providers/activity_log_provider.dart';
+import '../services/api_client.dart';
+import '../models/user_model.dart';
 import 'qr_generator_screen.dart';
 import 'users_screen.dart';
+import '../widgets/dashboard_charts.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
@@ -17,6 +22,11 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
+  String _time = '';
+  String _date = '';
+  late final DateFormat _timeFmt;
+  late final DateFormat _dateFmt;
+  Timer? _clockTimer;
 
   static const List<String> _titles = [
     'Infini-Stock',
@@ -31,10 +41,37 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
 
+    _timeFmt = DateFormat('h:mm:ss a');
+    _dateFmt = DateFormat('EEE, MMM d');
+
+    _syncTimeDate();
+    _clockTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      _syncTimeDate();
+    });
+
     Future.microtask(() {
       context.read<MonitorProvider>().fetchMonitors();
       context.read<UnitProvider>().fetchUnits();
       context.read<ActivityLogProvider>().fetchActivityLogs();
+      context.read<AuthProvider>().refreshMe();
+    });
+  }
+
+  @override
+  void dispose() {
+    _clockTimer?.cancel();
+    super.dispose();
+  }
+
+  void _syncTimeDate() {
+    final now = DateTime.now();
+    final newTime = _timeFmt.format(now);
+    final newDate = _dateFmt.format(now);
+    if (!mounted) return;
+    if (newTime == _time && newDate == _date) return;
+    setState(() {
+      _time = newTime;
+      _date = newDate;
     });
   }
 
@@ -50,32 +87,86 @@ class _HomeScreenState extends State<HomeScreen> {
     ];
 
     return Scaffold(
-      backgroundColor: AppTheme.primaryBg,
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
-        title: Text(_titles[_selectedIndex]),
+        backgroundColor: AppTheme.headerBg,
+        bottom: const PreferredSize(
+          preferredSize: Size.fromHeight(1),
+          child: Divider(height: 1, thickness: 1, color: AppTheme.borderDark),
+        ),
+        title: Consumer<AuthProvider>(
+          builder: (context, auth, _) {
+            final user = auth.currentUser;
+            final name = (user?.fullName ?? 'Account').trim();
+            final role = (user?.role ?? 'User').trim();
+            final capRole = role.isEmpty
+                ? 'User'
+                : '${role[0].toUpperCase()}${role.substring(1)}';
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  name.isEmpty ? 'Account' : name,
+                  style: const TextStyle(
+                    color: AppTheme.textPrimary,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  capRole,
+                  style: const TextStyle(
+                    color: AppTheme.textTertiary,
+                    fontSize: 11,
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
         centerTitle: false,
         actions: [
           Padding(
-            padding: const EdgeInsets.only(right: 16),
-            child: GestureDetector(
-              onTap: () {
-                showLogoutDialog(context);
-              },
-              child: Align(
-                alignment: Alignment.center,
-                child: Text(
-                  'Logout',
-                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                        color: AppTheme.textTertiary,
+            padding: const EdgeInsets.only(right: 12),
+            child: Row(
+              children: [
+                Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      _time,
+                      style: const TextStyle(
+                        color: AppTheme.textPrimary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        height: 1.1,
                       ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      _date,
+                      style: const TextStyle(
+                        color: AppTheme.textTertiary,
+                        fontSize: 10,
+                        height: 1.1,
+                      ),
+                    ),
+                  ],
                 ),
-              ),
+                const SizedBox(width: 12),
+                _AccountMenuButton(
+                  onAccount: () => _showAccountDialog(context),
+                  onLogout: () => showLogoutDialog(context),
+                ),
+              ],
             ),
-          ),
+          )
         ],
       ),
       drawer: Drawer(
-        backgroundColor: AppTheme.darkBg,
+        backgroundColor: AppTheme.sidebarBg,
         child: ListView(
           children: [
             DrawerHeader(
@@ -90,7 +181,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   Text(
-                    '📦 Infini-Stock',
+                    'Infini-Stock',
                     style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                           color: AppTheme.textPrimary,
                         ),
@@ -214,12 +305,314 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  Future<void> _showAccountDialog(BuildContext context) async {
+    final api = ApiClient();
+    final auth = context.read<AuthProvider>();
+    final user = auth.currentUser;
+
+    final fullNameController =
+        TextEditingController(text: (user?.fullName ?? '').trim());
+    final emailController =
+        TextEditingController(text: (user?.email ?? '').trim());
+
+    final currentPasswordController = TextEditingController();
+    final newPasswordController = TextEditingController();
+    final confirmPasswordController = TextEditingController();
+
+    String? error;
+    String? success;
+    var busy = false;
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) {
+            Future<void> saveInfo() async {
+              final fullName = fullNameController.text.trim();
+              final email = emailController.text.trim();
+
+              if (fullName.isEmpty) {
+                setDialogState(() {
+                  error = 'Full name is required';
+                  success = null;
+                });
+                return;
+              }
+              if (email.isEmpty) {
+                setDialogState(() {
+                  error = 'Email is required';
+                  success = null;
+                });
+                return;
+              }
+
+              setDialogState(() {
+                busy = true;
+                error = null;
+                success = null;
+              });
+
+              try {
+                final res = await api.updateMe(fullName: fullName, email: email);
+                final updatedUser = res['user'] != null
+                    ? User.fromJson(res['user'] as Map<String, dynamic>)
+                    : null;
+                final token = res['token'] as String?;
+                if (updatedUser != null) {
+                  await auth.applyAccountUpdate(user: updatedUser, token: token);
+                }
+                setDialogState(() {
+                  success = 'Account updated';
+                  error = null;
+                });
+              } catch (e) {
+                setDialogState(() {
+                  error = 'Failed to update account';
+                  success = null;
+                });
+              } finally {
+                setDialogState(() => busy = false);
+              }
+            }
+
+            Future<void> savePassword() async {
+              final currentPassword = currentPasswordController.text;
+              final newPassword = newPasswordController.text;
+              final confirm = confirmPasswordController.text;
+
+              if (currentPassword.isEmpty || newPassword.isEmpty) {
+                setDialogState(() {
+                  error = 'Current password and new password are required';
+                  success = null;
+                });
+                return;
+              }
+              if (newPassword.length < 8) {
+                setDialogState(() {
+                  error = 'New password must be at least 8 characters';
+                  success = null;
+                });
+                return;
+              }
+              if (newPassword != confirm) {
+                setDialogState(() {
+                  error = 'New passwords do not match';
+                  success = null;
+                });
+                return;
+              }
+
+              setDialogState(() {
+                busy = true;
+                error = null;
+                success = null;
+              });
+
+              try {
+                await api.changePassword(
+                  currentPassword: currentPassword,
+                  newPassword: newPassword,
+                );
+                currentPasswordController.clear();
+                newPasswordController.clear();
+                confirmPasswordController.clear();
+
+                setDialogState(() {
+                  success = 'Password updated';
+                  error = null;
+                });
+              } catch (e) {
+                setDialogState(() {
+                  error = 'Failed to update password';
+                  success = null;
+                });
+              } finally {
+                setDialogState(() => busy = false);
+              }
+            }
+
+            return AlertDialog(
+              backgroundColor: AppTheme.overlayBg,
+              title: const Text('Account'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (error != null)
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: AppTheme.statusError.withOpacity(0.40),
+                          ),
+                          color: AppTheme.statusError.withOpacity(0.10),
+                        ),
+                        child: Text(
+                          error!,
+                          style: const TextStyle(
+                            color: AppTheme.statusError,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                    if (success != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 10),
+                        child: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: AppTheme.statusSuccess.withOpacity(0.40),
+                            ),
+                            color: AppTheme.statusSuccess.withOpacity(0.10),
+                          ),
+                          child: Text(
+                            success!,
+                            style: const TextStyle(
+                              color: AppTheme.statusSuccess,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                      ),
+                    const SizedBox(height: 14),
+
+                    // Information
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: AppTheme.borderDark),
+                        color: AppTheme.overlayBg,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Information',
+                            style: TextStyle(
+                              color: AppTheme.textSecondary,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          TextField(
+                            controller: fullNameController,
+                            decoration: const InputDecoration(
+                              labelText: 'Full Name',
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          TextField(
+                            controller: emailController,
+                            decoration: const InputDecoration(
+                              labelText: 'Email',
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: ElevatedButton(
+                              onPressed: busy ? null : saveInfo,
+                              child: const Text('Save'),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 12),
+
+                    // Password
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: AppTheme.borderDark),
+                        color: AppTheme.overlayBg,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Password',
+                            style: TextStyle(
+                              color: AppTheme.textSecondary,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          TextField(
+                            controller: currentPasswordController,
+                            obscureText: true,
+                            decoration: const InputDecoration(
+                              labelText: 'Current Password',
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          TextField(
+                            controller: newPasswordController,
+                            obscureText: true,
+                            decoration: const InputDecoration(
+                              labelText: 'New Password',
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          TextField(
+                            controller: confirmPasswordController,
+                            obscureText: true,
+                            decoration: const InputDecoration(
+                              labelText: 'Confirm New Password',
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: ElevatedButton(
+                              onPressed: busy ? null : savePassword,
+                              child: const Text('Update'),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: busy ? null : () => Navigator.pop(ctx),
+                  child: const Text('Close'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    fullNameController.dispose();
+    emailController.dispose();
+    currentPasswordController.dispose();
+    newPasswordController.dispose();
+    confirmPasswordController.dispose();
+  }
+
   void showLogoutDialog(BuildContext context) {
     showDialog(
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          backgroundColor: AppTheme.primaryBg,
+          backgroundColor: AppTheme.overlayBg,
           title: const Text('Logout'),
           content: const Text('Are you sure you want to logout?'),
           actions: [
@@ -249,7 +642,7 @@ class _HomeScreenState extends State<HomeScreen> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          backgroundColor: AppTheme.primaryBg,
+          backgroundColor: AppTheme.overlayBg,
           title: const Text('About Infini-Stock'),
           content: const Text(
             'Infini-Stock v1.0.0\n\n'
@@ -266,6 +659,103 @@ class _HomeScreenState extends State<HomeScreen> {
       },
     );
   }
+}
+
+class _AccountMenuButton extends StatelessWidget {
+  final VoidCallback onAccount;
+  final VoidCallback onLogout;
+
+  const _AccountMenuButton({
+    required this.onAccount,
+    required this.onLogout,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<AuthProvider>(
+      builder: (context, auth, _) {
+        final fullName = (auth.currentUser?.fullName ?? '').trim();
+        final initials = _getInitials(fullName);
+
+        return InkWell(
+          borderRadius: BorderRadius.circular(999),
+          onTap: () async {
+            final box = context.findRenderObject() as RenderBox?;
+            final overlay =
+                Overlay.of(context).context.findRenderObject() as RenderBox?;
+
+            RelativeRect? position;
+            if (box != null && overlay != null) {
+              final topLeft = box.localToGlobal(Offset.zero, ancestor: overlay);
+              final bottomRight =
+                  box.localToGlobal(box.size.bottomRight(Offset.zero), ancestor: overlay);
+              position = RelativeRect.fromRect(
+                Rect.fromPoints(topLeft, bottomRight),
+                Offset.zero & overlay.size,
+              );
+            }
+
+            final selected = await showMenu<String>(
+              context: context,
+              color: AppTheme.overlayBg,
+              position: position ?? const RelativeRect.fromLTRB(0, 0, 0, 0),
+              items: [
+                const PopupMenuItem<String>(
+                  value: 'account',
+                  child: Text(
+                    'Account',
+                    style: TextStyle(color: AppTheme.textSecondary),
+                  ),
+                ),
+                const PopupMenuDivider(height: 1),
+                const PopupMenuItem<String>(
+                  value: 'logout',
+                  child: Text(
+                    'Logout',
+                    style: TextStyle(color: AppTheme.textSecondary),
+                  ),
+                ),
+              ],
+            );
+
+            if (selected == 'account') onAccount();
+            if (selected == 'logout') onLogout();
+          },
+          child: Container(
+            height: 44,
+            width: 44,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(999),
+              color: AppTheme.lavender600.withOpacity(0.20),
+              border: Border.all(
+                color: AppTheme.lavender600.withOpacity(0.30),
+              ),
+            ),
+            child: initials.isEmpty
+                ? const Icon(Icons.person, color: AppTheme.lavender300)
+                : Text(
+                    initials,
+                    style: const TextStyle(
+                      color: AppTheme.lavender300,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 13,
+                    ),
+                  ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+String _getInitials(String fullName) {
+  final name = fullName.trim();
+  if (name.isEmpty) return '';
+  final parts = name.split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+  final first = parts.isNotEmpty ? parts.first[0] : '';
+  final last = parts.length > 1 ? parts.last[0] : '';
+  return (first + last).toUpperCase();
 }
 
 class DashboardTab extends StatelessWidget {
@@ -296,6 +786,14 @@ class DashboardTab extends StatelessWidget {
                       label: 'Total Assets',
                       value: totalAssets,
                       icon: Icons.inventory,
+                      gradient: LinearGradient(
+                        begin: Alignment.centerLeft,
+                        end: Alignment.centerRight,
+                        colors: [
+                          AppTheme.lavender600.withOpacity(0.30),
+                          AppTheme.lavender500.withOpacity(0.10),
+                        ],
+                      ),
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -305,6 +803,14 @@ class DashboardTab extends StatelessWidget {
                       value: activeAssets,
                       icon: Icons.check_circle,
                       color: AppTheme.statusSuccess,
+                      gradient: LinearGradient(
+                        begin: Alignment.centerLeft,
+                        end: Alignment.centerRight,
+                        colors: [
+                          AppTheme.lavender500.withOpacity(0.25),
+                          AppTheme.lavender700.withOpacity(0.10),
+                        ],
+                      ),
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -314,6 +820,14 @@ class DashboardTab extends StatelessWidget {
                       value: brokenAssets,
                       icon: Icons.warning,
                       color: AppTheme.statusError,
+                      gradient: LinearGradient(
+                        begin: Alignment.centerLeft,
+                        end: Alignment.centerRight,
+                        colors: [
+                          AppTheme.lavender700.withOpacity(0.20),
+                          AppTheme.lavender600.withOpacity(0.10),
+                        ],
+                      ),
                     ),
                   ),
                 ],
@@ -321,6 +835,44 @@ class DashboardTab extends StatelessWidget {
             },
           ),
           const SizedBox(height: 24),
+
+          // Charts (match web dashboard)
+          Consumer3<ActivityLogProvider, MonitorProvider, UnitProvider>(
+            builder: (context, logsProvider, monitorProvider, unitProvider, _) {
+              return Column(
+                children: [
+                  DashboardPanel(
+                    title: 'Activity',
+                    subtitle: 'Activity logs over the last 14 days',
+                    icon: Icons.trending_up,
+                    child: ActivityLineChart(logs: logsProvider.logs),
+                  ),
+                  const SizedBox(height: 14),
+                  DashboardPanel(
+                    title: 'Status',
+                    subtitle: 'Asset status distribution',
+                    icon: Icons.pie_chart_outline,
+                    child: StatusPieChart(
+                      monitors: monitorProvider.monitors,
+                      units: unitProvider.units,
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  DashboardPanel(
+                    title: 'Location',
+                    subtitle: 'Assets grouped by location',
+                    icon: Icons.bar_chart,
+                    child: LocationStackedBarChart(
+                      monitors: monitorProvider.monitors,
+                      units: unitProvider.units,
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+
+          const SizedBox(height: 22),
           // Recent Activity
           Text(
             'Recent Activity',
@@ -353,7 +905,7 @@ class DashboardTab extends StatelessWidget {
                   scrollDirection: Axis.horizontal,
                   child: DataTable(
                     headingRowColor: MaterialStateProperty.all(
-                      const Color(0xFF2D1F4A),
+                      AppTheme.sidebarBg.withOpacity(0.45),
                     ),
                     columnSpacing: 18,
                     horizontalMargin: 12,
@@ -426,12 +978,14 @@ class _StatCard extends StatelessWidget {
   final int value;
   final IconData icon;
   final Color color;
+  final Gradient? gradient;
 
   const _StatCard({
     required this.label,
     required this.value,
     required this.icon,
     this.color = AppTheme.lavender600,
+    this.gradient,
   });
 
   @override
@@ -439,8 +993,9 @@ class _StatCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppTheme.darkBg,
-        border: Border.all(color: AppTheme.borderDark),
+        gradient: gradient,
+        color: gradient == null ? AppTheme.darkBg.withOpacity(0.85) : null,
+        border: Border.all(color: AppTheme.borderLight),
         borderRadius: BorderRadius.circular(10),
       ),
       child: Column(
@@ -451,7 +1006,7 @@ class _StatCard extends StatelessWidget {
           Text(
             value.toString(),
             style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  color: color,
+                  color: AppTheme.textPrimary,
                   fontWeight: FontWeight.w700,
                 ),
           ),
@@ -459,7 +1014,10 @@ class _StatCard extends StatelessWidget {
           Text(
             label,
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  fontSize: 11,
+                  fontSize: 10,
+                  color: AppTheme.textSecondary.withOpacity(0.85),
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.6,
                 ),
           ),
         ],
@@ -1080,7 +1638,7 @@ class ActivityLogsTab extends StatelessWidget {
               scrollDirection: Axis.horizontal,
               child: DataTable(
                 headingRowColor: MaterialStateProperty.all(
-                  const Color(0xFF2D1F4A),
+                  AppTheme.sidebarBg.withOpacity(0.45),
                 ),
                 columnSpacing: 18,
                 horizontalMargin: 12,

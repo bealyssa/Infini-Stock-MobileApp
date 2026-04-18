@@ -189,7 +189,7 @@ class _QRGeneratorScreenState extends State<QRGeneratorScreen> {
     }
 
     return Scaffold(
-      backgroundColor: AppTheme.primaryBg,
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
         title: const Text('QR Code Generator'),
         centerTitle: false,

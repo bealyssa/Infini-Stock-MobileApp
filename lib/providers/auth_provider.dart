@@ -18,6 +18,30 @@ class AuthProvider extends ChangeNotifier {
   User? get currentUser => _currentUser;
   String? get token => _token;
 
+  Future<void> refreshMe() async {
+    try {
+      final data = await _apiClient.getMe();
+      if (data['user'] != null) {
+        _currentUser = User.fromJson(data['user']);
+        notifyListeners();
+      }
+    } catch (_) {
+      // Ignore: keep existing cached user.
+    }
+  }
+
+  Future<void> applyAccountUpdate({
+    required User user,
+    String? token,
+  }) async {
+    _currentUser = user;
+    if (token != null && token.isNotEmpty) {
+      _token = token;
+      await _apiClient.setToken(token);
+    }
+    notifyListeners();
+  }
+
   AuthProvider() {
     _initializeAuth();
   }

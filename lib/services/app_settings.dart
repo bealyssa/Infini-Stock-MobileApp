@@ -1,4 +1,5 @@
 import 'package:shared_preferences/shared_preferences.dart';
+import 'api_client.dart';
 
 class AppSettings {
   static const String _apiUrlKey = 'api_base_url';
@@ -16,7 +17,7 @@ class AppSettings {
   /// Get backend API URL
   Future<String> getApiUrl() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(_apiUrlKey) ?? 'http://192.168.x.x:5000/api';
+    return prefs.getString(_apiUrlKey) ?? ApiClient.getDefaultBaseUrl();
   }
 
   /// Set backend API URL

@@ -516,7 +516,7 @@ class _UsersScreenState extends State<UsersScreen> {
     }
 
     return Scaffold(
-      backgroundColor: AppTheme.primaryBg,
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
         title: const Text('Manage Users'),
         centerTitle: false,

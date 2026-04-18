@@ -17,9 +17,21 @@ class ApiClient {
     _initializeDio();
   }
 
+  static String getDefaultBaseUrl() {
+    if (kIsWeb) {
+      return 'http://localhost:5000/api';
+    }
+
+    if (Platform.isAndroid) {
+      return 'http://10.0.2.2:5000/api';
+    }
+
+    return 'http://localhost:5000/api';
+  }
+
   void _initializeDio() {
-    // Default base URL - hardcoded for local WiFi
-    _baseUrl = 'http://192.168.1.2:5000/api';
+    //Change this 
+    _baseUrl = getDefaultBaseUrl();
 
     _dio = Dio(
       BaseOptions(
@@ -75,7 +87,10 @@ For mobile to connect to backend:
    Look for IPv4 Address (typically 192.168.x.x)
 
 2. Update the API URL in the app:
-   Go to Settings and enter: http://YOUR_IP:5000/api
+    Use the default below for your platform, or enter your PC IP:
+    Web/Desktop: http://localhost:5000/api
+    Android Emulator: http://10.0.2.2:5000/api
+    Physical device: http://YOUR_PC_IP:5000/api
    
 3. Make sure your phone is on the same WiFi network
 
@@ -111,6 +126,37 @@ Current Platform: $platform
       data: {
         'email': email,
         'password': password,
+      },
+    );
+    return response.data;
+  }
+
+  Future<Map<String, dynamic>> getMe() async {
+    final response = await _dio.get('/auth/me');
+    return response.data;
+  }
+
+  Future<Map<String, dynamic>> updateMe({
+    String? fullName,
+    String? email,
+  }) async {
+    final data = <String, dynamic>{};
+    if (fullName != null) data['full_name'] = fullName;
+    if (email != null) data['email'] = email;
+
+    final response = await _dio.patch('/auth/me', data: data);
+    return response.data;
+  }
+
+  Future<Map<String, dynamic>> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    final response = await _dio.patch(
+      '/auth/password',
+      data: {
+        'current_password': currentPassword,
+        'new_password': newPassword,
       },
     );
     return response.data;

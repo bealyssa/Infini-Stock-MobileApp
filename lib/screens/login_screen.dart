@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../theme/app_theme.dart';
 import '../providers/auth_provider.dart';
+import '../services/api_client.dart';
 import 'home_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -21,8 +22,7 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   void initState() {
     super.initState();
-    // Default URL for local WiFi connection
-    _urlController.text = 'http://192.168.1.2:5000/api';
+    _urlController.text = ApiClient.getDefaultBaseUrl();
   }
 
   @override
@@ -57,7 +57,7 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.primaryBg,
+      backgroundColor: Colors.transparent,
       body: Consumer<AuthProvider>(
         builder: (context, authProvider, child) {
           return SafeArea(
@@ -145,7 +145,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         controller: _urlController,
                         decoration: InputDecoration(
                           hintText: 'Backend URL',
-                          helperText: 'Example: http://192.168.1.100:5000/api',
+                          helperText: 'Example: http://localhost:5000/api',
                           prefixIcon: const Icon(Icons.link),
                           prefixIconColor: AppTheme.lavender500,
                         ),
@@ -157,8 +157,9 @@ class _LoginScreenState extends State<LoginScreen> {
                         child: Padding(
                           padding: const EdgeInsets.only(left: 16, top: 8),
                           child: Text(
-                            '💡 Use your PC IP address for WiFi connection\n'
-                            'Windows: Open cmd and run "ipconfig"',
+                            '💡 Web/Desktop uses localhost.\n'
+                            'Android emulator uses 10.0.2.2.\n'
+                            'Physical devices need your PC IP address.',
                             style: Theme.of(context).textTheme.bodySmall,
                           ),
                         ),

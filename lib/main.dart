@@ -7,6 +7,7 @@ import 'providers/monitor_provider.dart';
 import 'providers/unit_provider.dart';
 import 'providers/activity_log_provider.dart';
 import 'theme/app_theme.dart';
+import 'widgets/app_background.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -29,6 +30,9 @@ class MyApp extends StatelessWidget {
         title: 'Infini-Stock',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.lightTheme,
+        builder: (context, child) {
+          return AppBackground(child: child ?? const SizedBox.shrink());
+        },
         home: const AuthCheck(),
         routes: {
           '/login': (context) => const LoginScreen(),

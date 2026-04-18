@@ -1,21 +1,27 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class AppTheme {
   // Dark Lavender Colors (matching web app)
   static const Color primaryBg = Color(0xFF171717); // Main background
-  static const Color darkBg = Color(0xFF0f0a1a); // Darker variant
-  static const Color sidebarBg = Color(0xFF1a0f2e); // Sidebar background
-  static const Color headerBg = Color(0xFF1a0f2e); // Header background
+  static const Color darkBg = Color(0xFF0F0F0F); // Card/table dark surface
+  static const Color dark700 = Color(0xFF1F1F1F); // Darker shade
+  static const Color overlayBg = Color(0xFF0F0A1A); // Web menus/dialog panels
+
+  // Shell surfaces (web uses #190F2B with #3d2e5c borders)
+  static const Color sidebarBg = Color(0xFF190F2B); // Sidebar background
+  static const Color headerBg = Color(0xFF190F2B); // Header background
 
   // Lavender Accents
   static const Color lavender600 = Color(0xFF9333ea); // Primary button
   static const Color lavender700 = Color(0xFF7e22ce); // Hover state
   static const Color lavender500 = Color(0xFFa78bfa); // Light highlights
+  static const Color lavender400 = Color(0xFFc4b5fd); // Mid highlights
   static const Color lavender300 = Color(0xFFddd6fe); // Text accents
 
   // Borders & Dividers
-  static const Color borderDark = Color(0xFF3d2e5c); // Lavender-tinted border
-  static const Color borderLight = Color(0xFF2d2d2d); // Light border
+  static const Color borderDark = Color(0xFF3D2E5C); // Web border (#3d2e5c)
+  static const Color borderLight = Color(0xFF2D2D2D); // Web border-dark (#2d2d2d)
 
   // Text Colors
   static const Color textPrimary = Color(0xFFffffff); // White
@@ -34,13 +40,16 @@ class AppTheme {
       useMaterial3: true,
       brightness: Brightness.dark,
       primaryColor: lavender600,
-      scaffoldBackgroundColor: primaryBg,
+      scaffoldBackgroundColor: Colors.transparent,
+      fontFamily: GoogleFonts.inter().fontFamily,
 
       // AppBar theme
       appBarTheme: AppBarTheme(
         backgroundColor: headerBg,
         foregroundColor: textPrimary,
         elevation: 0,
+        scrolledUnderElevation: 0,
+        surfaceTintColor: Colors.transparent,
         centerTitle: false,
         titleTextStyle: const TextStyle(
           color: textPrimary,
@@ -51,8 +60,8 @@ class AppTheme {
 
       // Card theme
       cardTheme: CardThemeData(
-        color: primaryBg,
-        surfaceTintColor: borderDark,
+        color: darkBg,
+        surfaceTintColor: Colors.transparent,
         elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
@@ -63,7 +72,7 @@ class AppTheme {
       // Input decoration theme
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: primaryBg,
+        fillColor: darkBg,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(8),
           borderSide: const BorderSide(color: borderDark),
@@ -154,6 +163,8 @@ class AppTheme {
       listTileTheme: ListTileThemeData(
         textColor: textPrimary,
         iconColor: lavender500,
+        selectedTileColor: const Color(0xFF311850),
+        selectedColor: lavender300,
         titleTextStyle: const TextStyle(
           color: textPrimary,
           fontSize: 16,
