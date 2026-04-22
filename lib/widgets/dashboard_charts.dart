@@ -27,21 +27,43 @@ class DashboardPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            AppTheme.sidebarBg.withOpacity(0.48),
+            AppTheme.darkBg.withOpacity(0.90),
+          ],
+        ),
         border: Border.all(color: AppTheme.borderDark),
-        borderRadius: BorderRadius.circular(12),
-        color: AppTheme.darkBg.withOpacity(0.85),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.18),
+            blurRadius: 24,
+            offset: const Offset(0, 10),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
+            padding: const EdgeInsets.fromLTRB(18, 16, 18, 12),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
-                    Icon(icon, size: 18, color: AppTheme.lavender400),
+                    Container(
+                      width: 34,
+                      height: 34,
+                      decoration: BoxDecoration(
+                        color: AppTheme.lavender600.withOpacity(0.16),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Icon(icon, size: 18, color: AppTheme.lavender400),
+                    ),
                     const SizedBox(width: 8),
                     Text(
                       title,
@@ -64,9 +86,9 @@ class DashboardPanel extends StatelessWidget {
           ),
           const Divider(height: 1, color: AppTheme.borderDark),
           SizedBox(
-            height: 240,
+            height: 250,
             child: Padding(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(14),
               child: child,
             ),
           ),
@@ -521,7 +543,14 @@ List<_DayCount> _buildLast14DaysSeries(List<ActivityLog> logs) {
   return out;
 }
 
-const _statusOrder = ['active', 'repair', 'broken', 'inactive', 'other'];
+const _statusOrder = [
+  'active',
+  'broken',
+  'inactive',
+  'maintenance',
+  'repair',
+  'other',
+];
 
 Map<String, int> _statusCounts({
   required List<Monitor> monitors,
@@ -529,9 +558,10 @@ Map<String, int> _statusCounts({
 }) {
   final counts = <String, int>{
     'active': 0,
-    'repair': 0,
     'broken': 0,
     'inactive': 0,
+    'maintenance': 0,
+    'repair': 0,
     'other': 0,
   };
 
@@ -541,7 +571,7 @@ Map<String, int> _statusCounts({
     if (v == 'inactive') return 'inactive';
     if (v == 'broken') return 'broken';
     if (v == 'repair') return 'repair';
-    if (v == 'maintenance') return 'repair';
+    if (v == 'maintenance') return 'maintenance';
     return 'other';
   }
 
@@ -559,12 +589,14 @@ String _statusLabel(String status) {
   switch (status) {
     case 'active':
       return 'Active';
-    case 'repair':
-      return 'Repair';
     case 'broken':
       return 'Broken';
     case 'inactive':
       return 'Inactive';
+    case 'maintenance':
+      return 'Maintenance';
+    case 'repair':
+      return 'Repair';
     default:
       return 'Other';
   }
@@ -573,13 +605,15 @@ String _statusLabel(String status) {
 Color _statusColor(String status) {
   switch (status) {
     case 'active':
+      return AppTheme.statusSuccess;
+    case 'broken':
+      return AppTheme.statusError;
+    case 'inactive':
+      return AppTheme.textHint;
+    case 'maintenance':
       return AppTheme.lavender500;
     case 'repair':
-      return AppTheme.lavender700;
-    case 'broken':
-      return AppTheme.lavender600;
-    case 'inactive':
-      return AppTheme.lavender400;
+      return AppTheme.statusWarning;
     default:
       return AppTheme.lavender300;
   }

@@ -4,7 +4,6 @@ import 'api_client.dart';
 class AppSettings {
   static const String _apiUrlKey = 'api_base_url';
   static const String _emailKey = 'last_email';
-  static const String _themeKey = 'theme_mode';
 
   static final AppSettings _instance = AppSettings._internal();
 

@@ -20,11 +20,9 @@ class UnitProvider extends ChangeNotifier {
 
     try {
       final response = await _apiClient.listUnits();
-      if (response is List) {
-        _units = response
-            .map((u) => Unit.fromJson(u as Map<String, dynamic>))
-            .toList();
-      }
+      _units = response
+          .map((u) => Unit.fromJson(u as Map<String, dynamic>))
+          .toList();
     } catch (e) {
       _error = 'Failed to fetch units: ${e.toString()}';
     } finally {

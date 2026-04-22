@@ -20,11 +20,9 @@ class MonitorProvider extends ChangeNotifier {
 
     try {
       final response = await _apiClient.listMonitors();
-      if (response is List) {
-        _monitors = response
-            .map((m) => Monitor.fromJson(m as Map<String, dynamic>))
-            .toList();
-      }
+      _monitors = response
+          .map((m) => Monitor.fromJson(m as Map<String, dynamic>))
+          .toList();
     } catch (e) {
       _error = 'Failed to fetch monitors: ${e.toString()}';
     } finally {

@@ -20,13 +20,11 @@ class ActivityLogProvider extends ChangeNotifier {
 
     try {
       final response = await _apiClient.listActivityLogs(limit: limit);
-      if (response is List) {
-        _logs = response
-            .map((log) => ActivityLog.fromJson(log as Map<String, dynamic>))
-            .toList();
-        // Sort by timestamp descending
-        _logs.sort((a, b) => b.timestamp.compareTo(a.timestamp));
-      }
+      _logs = response
+          .map((log) => ActivityLog.fromJson(log as Map<String, dynamic>))
+          .toList();
+      // Sort by timestamp descending
+      _logs.sort((a, b) => b.timestamp.compareTo(a.timestamp));
     } catch (e) {
       _error = 'Failed to fetch activity logs: ${e.toString()}';
     } finally {

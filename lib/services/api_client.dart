@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 
 class ApiClient {
   static final ApiClient _instance = ApiClient._internal();
+  static const String _deployedBaseUrl = 'https://infini-stock.onrender.com/api';
   late Dio _dio;
   String? _token;
   String? _baseUrl;
@@ -18,15 +19,7 @@ class ApiClient {
   }
 
   static String getDefaultBaseUrl() {
-    if (kIsWeb) {
-      return 'http://localhost:5000/api';
-    }
-
-    if (Platform.isAndroid) {
-      return 'http://10.0.2.2:5000/api';
-    }
-
-    return 'http://localhost:5000/api';
+    return _deployedBaseUrl;
   }
 
   void _initializeDio() {
@@ -80,14 +73,17 @@ class ApiClient {
             ? 'Android'
             : 'iOS';
     return '''
-For mobile to connect to backend:
+Default backend:
+
+  $_deployedBaseUrl
+
+If you need local development:
 
 1. Get your PC IP address:
    Windows: Open cmd and run: ipconfig
    Look for IPv4 Address (typically 192.168.x.x)
 
-2. Update the API URL in the app:
-    Use the default below for your platform, or enter your PC IP:
+2. Update the API URL in the app to a local address:
     Web/Desktop: http://localhost:5000/api
     Android Emulator: http://10.0.2.2:5000/api
     Physical device: http://YOUR_PC_IP:5000/api
