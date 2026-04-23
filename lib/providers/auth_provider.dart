@@ -65,15 +65,12 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  Future<bool> login(String email, String password, String apiUrl) async {
+  Future<bool> login(String email, String password) async {
     _isLoading = true;
     _error = null;
     notifyListeners();
 
     try {
-      // Set custom API URL
-      _apiClient.setBaseUrl(apiUrl);
-
       // Call login endpoint
       final response = await _apiClient.login(email, password);
 
@@ -96,7 +93,7 @@ class AuthProvider extends ChangeNotifier {
         return false;
       }
     } catch (e) {
-      _error = 'Login error: ${e.toString()}';
+      _error = 'Login failed. Please check your credentials.';
       notifyListeners();
       return false;
     } finally {

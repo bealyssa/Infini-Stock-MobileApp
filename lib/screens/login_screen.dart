@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../theme/app_theme.dart';
 import '../providers/auth_provider.dart';
-import '../services/api_client.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({Key? key}) : super(key: key);
@@ -14,41 +13,68 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  final _urlController = TextEditingController();
   bool _showPassword = false;
+  String? _validationError;
 
   @override
   void initState() {
     super.initState();
-    _urlController.text = ApiClient.getDefaultBaseUrl();
   }
 
   @override
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
-    _urlController.dispose();
     super.dispose();
   }
 
+  bool _isValidEmail(String email) {
+    // Simple pragmatic email check.
+    final regex = RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$');
+    return regex.hasMatch(email);
+  }
+
   void _handleLogin(AuthProvider authProvider) async {
-    if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please fill in all fields')),
-      );
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+
+    setState(() => _validationError = null);
+
+    if (email.isEmpty) {
+      setState(() => _validationError = 'Email is required');
+      return;
+    }
+    if (!_isValidEmail(email)) {
+      setState(() => _validationError = 'Enter a valid email address');
+      return;
+    }
+    if (password.isEmpty) {
+      setState(() => _validationError = 'Password is required');
+      return;
+    }
+    if (password.length < 6) {
+      setState(() => _validationError = 'Password must be at least 6 characters');
       return;
     }
 
-    final success = await authProvider.login(
-      _emailController.text.trim(),
-      _passwordController.text,
-      _urlController.text.trim(),
-    );
+    // Clear any previous API errors once user retries.
+    authProvider.clearError();
+
+    final success = await authProvider.login(email, password);
 
     if (success) {
       if (mounted) {
         Navigator.of(context).pushReplacementNamed('/home');
       }
+      return;
+    }
+
+    if (!mounted) return;
+    // Keep error display area consistent even if provider error is null.
+    if (authProvider.error == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Login failed')),
+      );
     }
   }
 
@@ -128,45 +154,9 @@ class _LoginScreenState extends State<LoginScreen> {
                     style: const TextStyle(color: AppTheme.textPrimary),
                   ),
                   const SizedBox(height: 16),
-                  // API URL Input
-                  ExpansionTile(
-                    title: const Text(
-                      'Connection Settings',
-                      style: TextStyle(
-                        color: AppTheme.textSecondary,
-                        fontSize: 14,
-                      ),
-                    ),
-                    childrenPadding: const EdgeInsets.all(12),
-                    children: [
-                      TextField(
-                        controller: _urlController,
-                        decoration: InputDecoration(
-                          hintText: 'Backend URL',
-                          helperText: 'Example: http://localhost:5000/api',
-                          prefixIcon: const Icon(Icons.link),
-                          prefixIconColor: AppTheme.lavender500,
-                        ),
-                        style: const TextStyle(color: AppTheme.textPrimary),
-                      ),
-                      const SizedBox(height: 8),
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: Padding(
-                          padding: const EdgeInsets.only(left: 16, top: 8),
-                          child: Text(
-                            '💡 Web/Desktop uses localhost.\n'
-                            'Android emulator uses 10.0.2.2.\n'
-                            'Physical devices need your PC IP address.',
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
                   const SizedBox(height: 24),
                   // Error Message
-                  if (authProvider.error != null)
+                  if (_validationError != null || authProvider.error != null)
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
@@ -183,7 +173,8 @@ class _LoginScreenState extends State<LoginScreen> {
                           const SizedBox(width: 12),
                           Expanded(
                             child: Text(
-                              authProvider.error!,
+                              (_validationError ?? authProvider.error) ??
+                                  'Login failed',
                               style: const TextStyle(
                                 color: AppTheme.statusError,
                                 fontSize: 12,
