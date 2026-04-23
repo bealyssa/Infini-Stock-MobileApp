@@ -8,6 +8,7 @@ import '../models/activity_log_model.dart';
 import '../models/monitor_model.dart';
 import '../models/unit_model.dart';
 import '../theme/app_theme.dart';
+import '../utils/responsive.dart';
 
 class DashboardPanel extends StatelessWidget {
   final String title;
@@ -25,6 +26,7 @@ class DashboardPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final r = Responsive.of(context);
     return Container(
       decoration: BoxDecoration(
         gradient: LinearGradient(
@@ -36,7 +38,7 @@ class DashboardPanel extends StatelessWidget {
           ],
         ),
         border: Border.all(color: AppTheme.borderDark),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(r.dp(16)),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.18),
@@ -49,22 +51,31 @@ class DashboardPanel extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(18, 16, 18, 12),
+            padding: EdgeInsets.fromLTRB(
+              r.dp(18),
+              r.dp(16),
+              r.dp(18),
+              r.dp(12),
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
                     Container(
-                      width: 34,
-                      height: 34,
+                      width: r.dp(34),
+                      height: r.dp(34),
                       decoration: BoxDecoration(
                         color: AppTheme.lavender600.withOpacity(0.16),
-                        borderRadius: BorderRadius.circular(10),
+                        borderRadius: BorderRadius.circular(r.dp(10)),
                       ),
-                      child: Icon(icon, size: 18, color: AppTheme.lavender400),
+                      child: Icon(
+                        icon,
+                        size: r.icon(18),
+                        color: AppTheme.lavender400,
+                      ),
                     ),
-                    const SizedBox(width: 8),
+                    SizedBox(width: r.dp(8)),
                     Text(
                       title,
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
@@ -74,7 +85,7 @@ class DashboardPanel extends StatelessWidget {
                     ),
                   ],
                 ),
-                const SizedBox(height: 6),
+                SizedBox(height: r.dp(6)),
                 Text(
                   subtitle,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
@@ -86,9 +97,9 @@ class DashboardPanel extends StatelessWidget {
           ),
           const Divider(height: 1, color: AppTheme.borderDark),
           SizedBox(
-            height: 250,
+            height: r.dp(250),
             child: Padding(
-              padding: const EdgeInsets.all(14),
+              padding: r.insetsAll(14),
               child: child,
             ),
           ),
@@ -105,6 +116,7 @@ class ActivityLineChart extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final r = Responsive.of(context);
     final series = _buildLast14DaysSeries(logs);
     if (series.isEmpty) {
       return Center(
@@ -149,16 +161,16 @@ class ActivityLineChart extends StatelessWidget {
           leftTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
-              reservedSize: 34,
+              reservedSize: r.dp(34),
               interval: _niceInterval(maxY),
               getTitlesWidget: (value, meta) {
                 return Padding(
-                  padding: const EdgeInsets.only(right: 8),
+                  padding: EdgeInsets.only(right: r.dp(8)),
                   child: Text(
                     value.toInt().toString(),
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: AppTheme.textTertiary,
-                      fontSize: 11,
+                      fontSize: r.sp(11),
                     ),
                   ),
                 );
@@ -168,7 +180,7 @@ class ActivityLineChart extends StatelessWidget {
           bottomTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
-              reservedSize: 28,
+              reservedSize: r.dp(28),
               interval: 2,
               getTitlesWidget: (value, meta) {
                 final idx = value.toInt();
@@ -176,12 +188,12 @@ class ActivityLineChart extends StatelessWidget {
                   return const SizedBox.shrink();
                 }
                 return Padding(
-                  padding: const EdgeInsets.only(top: 8),
+                  padding: EdgeInsets.only(top: r.dp(8)),
                   child: Text(
                     series[idx].label,
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: AppTheme.textTertiary,
-                      fontSize: 10,
+                      fontSize: r.sp(10),
                     ),
                   ),
                 );
@@ -227,6 +239,7 @@ class StatusPieChart extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final r = Responsive.of(context);
     final counts = _statusCounts(monitors: monitors, units: units);
     final total = counts.values.fold<int>(0, (a, b) => a + b);
 
@@ -249,7 +262,7 @@ class StatusPieChart extends StatelessWidget {
         PieChartSectionData(
           value: value.toDouble(),
           color: _statusColor(status),
-          radius: 70,
+          radius: r.dp(70),
           showTitle: false,
         ),
       );
@@ -261,22 +274,22 @@ class StatusPieChart extends StatelessWidget {
           child: PieChart(
             PieChartData(
               sections: sections,
-              centerSpaceRadius: 42,
-              sectionsSpace: 2,
+              centerSpaceRadius: r.dp(42),
+              sectionsSpace: r.dp(2),
               borderData: FlBorderData(show: false),
             ),
           ),
         ),
-        const SizedBox(width: 12),
+        SizedBox(width: r.dp(12)),
         SizedBox(
-          width: 120,
+          width: r.dp(120),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: _statusOrder
                 .where((s) => (counts[s] ?? 0) > 0)
                 .map((s) => Padding(
-                      padding: const EdgeInsets.only(bottom: 10),
+                      padding: EdgeInsets.only(bottom: r.dp(10)),
                       child: _LegendRow(
                         color: _statusColor(s),
                         label: _statusLabel(s),
@@ -303,6 +316,7 @@ class LocationStackedBarChart extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final r = Responsive.of(context);
     final unitById = {for (final u in units) u.id: u};
 
     final buckets = <String, _LocationBucket>{};
@@ -386,10 +400,10 @@ class LocationStackedBarChart extends StatelessWidget {
           barRods: [
             BarChartRodData(
               toY: running,
-              width: 16,
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(4),
-                topRight: Radius.circular(4),
+              width: r.dp(16),
+              borderRadius: BorderRadius.only(
+                topLeft: Radius.circular(r.dp(4)),
+                topRight: Radius.circular(r.dp(4)),
               ),
               rodStackItems: stacks,
             ),
@@ -423,15 +437,15 @@ class LocationStackedBarChart extends StatelessWidget {
           leftTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
-              reservedSize: 34,
+              reservedSize: r.dp(34),
               interval: _niceInterval(maxY),
               getTitlesWidget: (value, meta) => Padding(
-                padding: const EdgeInsets.only(right: 8),
+                padding: EdgeInsets.only(right: r.dp(8)),
                 child: Text(
                   value.toInt().toString(),
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: AppTheme.textTertiary,
-                    fontSize: 11,
+                    fontSize: r.sp(11),
                   ),
                 ),
               ),
@@ -440,7 +454,7 @@ class LocationStackedBarChart extends StatelessWidget {
           bottomTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
-              reservedSize: 44,
+              reservedSize: r.dp(44),
               getTitlesWidget: (value, meta) {
                 final idx = value.toInt();
                 if (idx < 0 || idx >= data.length) {
@@ -448,15 +462,15 @@ class LocationStackedBarChart extends StatelessWidget {
                 }
                 final label = data[idx].location;
                 return Padding(
-                  padding: const EdgeInsets.only(top: 8),
+                  padding: EdgeInsets.only(top: r.dp(8)),
                   child: Transform.rotate(
                     angle: -0.45,
                     child: Text(
                       label,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: AppTheme.textTertiary,
-                        fontSize: 10,
+                        fontSize: r.sp(10),
                       ),
                     ),
                   ),
@@ -483,23 +497,24 @@ class _LegendRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final r = Responsive.of(context);
     return Row(
       children: [
         Container(
-          width: 10,
-          height: 10,
+          width: r.dp(10),
+          height: r.dp(10),
           decoration: BoxDecoration(
             color: color,
-            borderRadius: BorderRadius.circular(2),
+            borderRadius: BorderRadius.circular(r.dp(2)),
           ),
         ),
-        const SizedBox(width: 8),
+        SizedBox(width: r.dp(8)),
         Expanded(
           child: Text(
             '$label ($value)',
-            style: const TextStyle(
+            style: TextStyle(
               color: AppTheme.textSecondary,
-              fontSize: 11,
+              fontSize: r.sp(11),
             ),
           ),
         ),

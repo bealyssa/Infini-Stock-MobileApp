@@ -9,6 +9,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:mobile_scanner/mobile_scanner.dart' as ms;
 import 'package:zxing2/qrcode.dart';
 import '../theme/app_theme.dart';
+import '../utils/responsive.dart';
 
 class QRScannerHelperV2 {
   /// Launch QR scanner with camera and image upload modes
@@ -315,6 +316,7 @@ class _QRScannerViewV2State extends State<QRScannerViewV2> {
   }
 
   Widget _buildCameraView() {
+    final r = Responsive.of(context);
     return Stack(
       children: [
         ms.MobileScanner(
@@ -325,19 +327,19 @@ class _QRScannerViewV2State extends State<QRScannerViewV2> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(
+                  Icon(
                     Icons.error_outline,
                     color: AppTheme.statusError,
-                    size: 48,
+                    size: r.icon(48),
                   ),
-                  const SizedBox(height: 16),
+                  SizedBox(height: r.dp(16)),
                   Text(
                     'Camera Error',
                     style: Theme.of(context).textTheme.bodyLarge,
                   ),
-                  const SizedBox(height: 8),
-                  const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 32.0),
+                  SizedBox(height: r.dp(8)),
+                  Padding(
+                    padding: EdgeInsets.symmetric(horizontal: r.dp(32)),
                     child: Text(
                       'Please grant camera permissions in your app settings',
                       style: TextStyle(color: AppTheme.textTertiary),
@@ -352,21 +354,21 @@ class _QRScannerViewV2State extends State<QRScannerViewV2> {
         // Scan frame overlay
         Center(
           child: Container(
-            width: 250,
-            height: 250,
+            width: r.dp(250),
+            height: r.dp(250),
             decoration: BoxDecoration(
               border: Border.all(
                 color: AppTheme.lavender600,
                 width: 2,
               ),
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(r.dp(12)),
             ),
-            child: const Center(
+            child: Center(
               child: Text(
                 'Point at QR code',
                 style: TextStyle(
                   color: AppTheme.lavender600,
-                  fontSize: 14,
+                  fontSize: r.sp(14),
                 ),
               ),
             ),
@@ -377,42 +379,43 @@ class _QRScannerViewV2State extends State<QRScannerViewV2> {
   }
 
   Widget _buildUploadView() {
+    final r = Responsive.of(context);
     return SingleChildScrollView(
       child: Padding(
-        padding: const EdgeInsets.all(24.0),
+        padding: r.insetsAll(24),
         child: Column(
           children: [
-            const SizedBox(height: 32),
+            SizedBox(height: r.dp(32)),
             Icon(
               Icons.image,
-              size: 64,
+              size: r.icon(64),
               color: AppTheme.textTertiary,
             ),
-            const SizedBox(height: 24),
+            SizedBox(height: r.dp(24)),
             MaterialButton(
               onPressed: _isProcessing ? null : _pickAndScanImage,
               color: AppTheme.lavender600,
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(r.dp(12)),
               ),
-              child: const Padding(
+              child: Padding(
                 padding: EdgeInsets.symmetric(
-                  vertical: 16.0,
-                  horizontal: 24.0,
+                  vertical: r.dp(16),
+                  horizontal: r.dp(24),
                 ),
                 child: Column(
                   children: [
                     Icon(
                       Icons.cloud_upload,
-                      size: 32,
+                      size: r.icon(32),
                       color: Colors.white,
                     ),
-                    SizedBox(height: 12),
+                    SizedBox(height: r.dp(12)),
                     Text(
                       'Upload QR Image',
                       style: TextStyle(
                         color: Colors.white,
-                        fontSize: 16,
+                        fontSize: r.sp(16),
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -421,30 +424,33 @@ class _QRScannerViewV2State extends State<QRScannerViewV2> {
               ),
             ),
             if (_isProcessing) ...[
-              const SizedBox(height: 18),
+              SizedBox(height: r.dp(18)),
               const CircularProgressIndicator(
                 valueColor: AlwaysStoppedAnimation<Color>(AppTheme.lavender600),
               ),
-              const SizedBox(height: 10),
-              const Text(
+              SizedBox(height: r.dp(10)),
+              Text(
                 'Scanning image…',
-                style: TextStyle(color: AppTheme.textTertiary, fontSize: 13),
+                style: TextStyle(
+                  color: AppTheme.textTertiary,
+                  fontSize: r.sp(13),
+                ),
                 textAlign: TextAlign.center,
               ),
             ],
-            const SizedBox(height: 24),
-            const Text(
+            SizedBox(height: r.dp(24)),
+            Text(
               'Select a photo/screenshot that contains a QR code. The app will detect and read it automatically.',
               style: TextStyle(
                 color: AppTheme.textTertiary,
-                fontSize: 13,
+                fontSize: r.sp(13),
               ),
               textAlign: TextAlign.center,
             ),
             if (_error != null) ...[
-              const SizedBox(height: 24),
+              SizedBox(height: r.dp(24)),
               Container(
-                padding: const EdgeInsets.all(12),
+                padding: r.insetsAll(12),
                 decoration: BoxDecoration(
                   color: AppTheme.statusError.withOpacity(0.1),
                   border:
@@ -453,9 +459,9 @@ class _QRScannerViewV2State extends State<QRScannerViewV2> {
                 ),
                 child: Text(
                   _error!,
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: AppTheme.statusError,
-                    fontSize: 13,
+                    fontSize: r.sp(13),
                   ),
                   textAlign: TextAlign.center,
                 ),

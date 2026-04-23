@@ -35,18 +35,31 @@ class MonitorProvider extends ChangeNotifier {
     String deviceName,
     String qrCode,
     String status, {
+    String? condition,
+    String? modelType,
+    String? serialNumber,
     String? linkedUnitId,
+    String? location,
     String? description,
+    String? notes,
+    String? imageData,
   }) async {
     try {
       final data = {
         'deviceName': deviceName,
         'qrCode': qrCode,
         'status': status,
+        if (condition != null && condition.isNotEmpty) 'condition': condition,
+        if (modelType != null && modelType.isNotEmpty) 'modelType': modelType,
+        if (serialNumber != null && serialNumber.isNotEmpty)
+          'serialNumber': serialNumber,
         if (linkedUnitId != null && linkedUnitId.isNotEmpty)
           'linkedUnitId': linkedUnitId,
+        if (location != null && location.isNotEmpty) 'location': location,
         if (description != null && description.isNotEmpty)
           'description': description,
+        if (notes != null && notes.isNotEmpty) 'notes': notes,
+        if (imageData != null && imageData.isNotEmpty) 'imageData': imageData,
       };
       await _apiClient.createMonitor(data);
       await fetchMonitors();

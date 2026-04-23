@@ -93,7 +93,7 @@ class AuthProvider extends ChangeNotifier {
         return false;
       }
     } catch (e) {
-      _error = 'Login failed. Please check your credentials.';
+      _error = 'Login error: ${e.toString()}';
       notifyListeners();
       return false;
     } finally {

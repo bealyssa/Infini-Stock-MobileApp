@@ -8,6 +8,7 @@ import 'providers/unit_provider.dart';
 import 'providers/activity_log_provider.dart';
 import 'theme/app_theme.dart';
 import 'widgets/app_background.dart';
+import 'utils/responsive.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -31,7 +32,18 @@ class MyApp extends StatelessWidget {
         debugShowCheckedModeBanner: false,
         theme: AppTheme.lightTheme,
         builder: (context, child) {
-          return AppBackground(child: child ?? const SizedBox.shrink());
+          final media = MediaQuery.of(context);
+          final scale = Responsive.scaleForWidth(media.size.width);
+
+          final baseTheme = Theme.of(context);
+          final scaledTheme = baseTheme.copyWith(
+            textTheme: baseTheme.textTheme.apply(fontSizeFactor: scale),
+          );
+
+          return Theme(
+            data: scaledTheme,
+            child: AppBackground(child: child ?? const SizedBox.shrink()),
+          );
         },
         home: const AuthCheck(),
         routes: {

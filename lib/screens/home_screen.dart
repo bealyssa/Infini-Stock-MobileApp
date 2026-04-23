@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:image_picker/image_picker.dart';
 import 'dart:async';
 import '../theme/app_theme.dart';
 import '../providers/auth_provider.dart';
@@ -15,11 +16,31 @@ import '../models/user_model.dart';
 import '../models/activity_log_model.dart';
 import '../models/monitor_model.dart';
 import '../models/unit_model.dart';
-import 'users_screen.dart';
+import 'users_screen.dart' show UsersScreen;
 import '../widgets/dashboard_charts.dart';
 import '../services/qr_scanner_helper.dart';
 import '../utils/rbac.dart';
+import '../utils/responsive.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+
+bool _isValidSerialNumber(String value) {
+  return RegExp(r'^\d{5}$').hasMatch(value.trim());
+}
+
+String _infocomDeviceIdFromUuid(String uuid) {
+  final trimmed = uuid.trim();
+  if (trimmed.isEmpty) return '—';
+
+  final digitsOnly = trimmed.replaceAll(RegExp(r'[^0-9]'), '');
+  final last4 = digitsOnly.length >= 4
+      ? digitsOnly.substring(digitsOnly.length - 4)
+      : digitsOnly.padLeft(4, '0');
+
+  final compact = trimmed.replaceAll('-', '');
+  final short = compact.length > 8 ? compact.substring(0, 8) : compact;
+
+  return 'Infocom-$last4($short)';
+}
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
@@ -77,9 +98,9 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     // Handle simple prefixes like "qrCode: XYZ".
-    final prefix = RegExp(r'^(qrCode|qrcode|qr)\s*[:=]\s*(.+)$',
-            caseSensitive: false)
-        .firstMatch(text);
+    final prefix =
+        RegExp(r'^(qrCode|qrcode|qr)\s*[:=]\s*(.+)$', caseSensitive: false)
+            .firstMatch(text);
     if (prefix != null) {
       final extracted = prefix.group(2)?.trim();
       if (extracted != null && extracted.isNotEmpty) return extracted;
@@ -167,10 +188,10 @@ class _HomeScreenState extends State<HomeScreen> {
       );
 
       final type = (baseAsset['type'] as String? ?? '').toLowerCase();
-        final scannedCode =
+      final scannedCode =
           (baseAsset['qrCode'] as String? ?? '').trim().isNotEmpty
-            ? (baseAsset['qrCode'] as String? ?? '').trim()
-            : normalizedCode.trim();
+              ? (baseAsset['qrCode'] as String? ?? '').trim()
+              : normalizedCode.trim();
       Map<String, dynamic> details = {};
 
       if (type == 'monitor') {
@@ -216,6 +237,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return Consumer<AuthProvider>(
       builder: (context, auth, _) {
         final user = auth.currentUser;
+        final r = Responsive.of(context);
 
         // Build accessible pages based on user role
         final allPages = <int, Widget>{
@@ -230,83 +252,80 @@ class _HomeScreenState extends State<HomeScreen> {
         if (RBACManager.canAccessDashboard(user)) accessiblePageIndices.add(0);
         if (RBACManager.canAccessMonitors(user)) accessiblePageIndices.add(1);
         if (RBACManager.canAccessUnits(user)) accessiblePageIndices.add(2);
-        if (RBACManager.canAccessActivityLogs(user))
+        if (RBACManager.canAccessActivityLogs(user)) {
           accessiblePageIndices.add(3);
-        if (RBACManager.canAccessUsers(user)) accessiblePageIndices.add(4);
-
-        final pages = <Widget>[
-          for (final idx in accessiblePageIndices) allPages[idx]!
-        ];
-
-        // Keep selected index within bounds of the filtered pages list
-        if (pages.isNotEmpty && _selectedIndex >= pages.length) {
-          Future.microtask(() {
-            if (mounted) setState(() => _selectedIndex = 0);
-          });
+        }
+        if (RBACManager.canAccessUsers(user)) {
+          accessiblePageIndices.add(4);
         }
 
-        final selectedIndex =
-            pages.isEmpty ? 0 : _selectedIndex.clamp(0, pages.length - 1);
+        final pages = accessiblePageIndices
+            .map((index) => allPages[index])
+            .whereType<Widget>()
+            .toList();
 
-        final navItems = <BottomNavigationBarItem>[
-          if (RBACManager.canAccessDashboard(user))
-            const BottomNavigationBarItem(
-              icon: Icon(Icons.dashboard),
-              label: 'Home',
-            ),
-          if (RBACManager.canAccessMonitors(user))
-            const BottomNavigationBarItem(
-              icon: Icon(Icons.devices),
-              label: 'Monitors',
-            ),
-          if (RBACManager.canAccessUnits(user))
-            const BottomNavigationBarItem(
-              icon: Icon(Icons.inventory_2),
-              label: 'Units',
-            ),
-          if (RBACManager.canAccessActivityLogs(user))
-            const BottomNavigationBarItem(
-              icon: Icon(Icons.history),
-              label: 'Logs',
-            ),
-          if (RBACManager.canAccessUsers(user))
-            const BottomNavigationBarItem(
-              icon: Icon(Icons.people),
-              label: 'Users',
-            ),
-        ];
+        final navItems = <BottomNavigationBarItem>[];
+        for (final pageIndex in accessiblePageIndices) {
+          switch (pageIndex) {
+            case 0:
+              navItems.add(const BottomNavigationBarItem(
+                icon: Icon(Icons.dashboard),
+                label: 'Home',
+              ));
+              break;
+            case 1:
+              navItems.add(const BottomNavigationBarItem(
+                icon: Icon(Icons.devices),
+                label: 'Monitors',
+              ));
+              break;
+            case 2:
+              navItems.add(const BottomNavigationBarItem(
+                icon: Icon(Icons.inventory_2),
+                label: 'Units',
+              ));
+              break;
+            case 3:
+              navItems.add(const BottomNavigationBarItem(
+                icon: Icon(Icons.history),
+                label: 'Logs',
+              ));
+              break;
+            case 4:
+              navItems.add(const BottomNavigationBarItem(
+                icon: Icon(Icons.people),
+                label: 'Users',
+              ));
+              break;
+          }
+        }
 
-        final navIndex = navItems.isEmpty
-            ? 0
-            : selectedIndex.clamp(0, navItems.length - 1);
+        var navIndex = _selectedIndex;
+        if (navIndex < 0 || navIndex >= pages.length) navIndex = 0;
+        final selectedIndex = navIndex;
 
         return Scaffold(
           backgroundColor: Colors.transparent,
           appBar: AppBar(
-            backgroundColor: AppTheme.headerBg,
-            bottom: const PreferredSize(
-              preferredSize: Size.fromHeight(1),
-              child:
-                  Divider(height: 1, thickness: 1, color: AppTheme.borderDark),
-            ),
+            backgroundColor: AppTheme.sidebarBg,
+            elevation: 0,
+            titleSpacing: r.dp(12),
             title: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  (user?.fullName ?? 'Account').trim().isEmpty
-                      ? 'Account'
-                      : (user?.fullName ?? 'Account').trim(),
-                  style: const TextStyle(
+                  'InfoTrack',
+                  style: TextStyle(
                     color: AppTheme.textPrimary,
-                    fontSize: 14,
+                    fontSize: r.sp(14),
                     fontWeight: FontWeight.w700,
                   ),
                 ),
-                const SizedBox(height: 2),
+                SizedBox(height: r.dp(2)),
                 if (RBACManager.getRoleIndicator(user?.role) != null)
                   Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    padding: r.insetsSymmetric(horizontal: 8, vertical: 2),
                     decoration: BoxDecoration(
                       color:
                           Color(RBACManager.getRoleIndicatorColor(user?.role))
@@ -323,7 +342,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       style: TextStyle(
                         color: Color(
                             RBACManager.getRoleIndicatorColor(user?.role)),
-                        fontSize: 9,
+                        fontSize: r.sp(9),
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -331,9 +350,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 else
                   Text(
                     RBACManager.getRoleLabel(user?.role),
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: AppTheme.textTertiary,
-                      fontSize: 11,
+                      fontSize: r.sp(11),
                     ),
                   ),
               ],
@@ -341,7 +360,7 @@ class _HomeScreenState extends State<HomeScreen> {
             centerTitle: false,
             actions: [
               Padding(
-                padding: const EdgeInsets.only(right: 12),
+                padding: EdgeInsets.only(right: r.dp(12)),
                 child: Row(
                   children: [
                     Column(
@@ -350,25 +369,25 @@ class _HomeScreenState extends State<HomeScreen> {
                       children: [
                         Text(
                           _time,
-                          style: const TextStyle(
+                          style: TextStyle(
                             color: AppTheme.textPrimary,
-                            fontSize: 12,
+                            fontSize: r.sp(12),
                             fontWeight: FontWeight.w700,
                             height: 1.1,
                           ),
                         ),
-                        const SizedBox(height: 4),
+                        SizedBox(height: r.dp(4)),
                         Text(
                           _date,
-                          style: const TextStyle(
+                          style: TextStyle(
                             color: AppTheme.textTertiary,
-                            fontSize: 10,
+                            fontSize: r.sp(10),
                             height: 1.1,
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(width: 12),
+                    SizedBox(width: r.dp(12)),
                     _AccountMenuButton(
                       onAccount: () => _showAccountDialog(context),
                       onLogout: () => showLogoutDialog(context),
@@ -394,7 +413,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     mainAxisAlignment: MainAxisAlignment.end,
                     children: [
                       Text(
-                        'Infini-Stock',
+                        'InfoTrack',
                         style:
                             Theme.of(context).textTheme.headlineSmall?.copyWith(
                                   color: AppTheme.textPrimary,
@@ -502,8 +521,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   backgroundColor: AppTheme.sidebarBg,
                   selectedItemColor: AppTheme.lavender600,
                   unselectedItemColor: AppTheme.textTertiary,
-                  selectedFontSize: 11,
-                  unselectedFontSize: 11,
+                  selectedFontSize: r.sp(11),
+                  unselectedFontSize: r.sp(11),
                   items: navItems,
                 ),
           floatingActionButton: RBACManager.canScanQR(user)
@@ -543,6 +562,7 @@ class _HomeScreenState extends State<HomeScreen> {
       builder: (ctx) {
         return StatefulBuilder(
           builder: (ctx, setDialogState) {
+            final r = Responsive.of(ctx);
             Future<void> saveInfo() async {
               final fullName = fullNameController.text.trim();
               final email = emailController.text.trim();
@@ -659,7 +679,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     if (error != null)
                       Container(
                         width: double.infinity,
-                        padding: const EdgeInsets.all(12),
+                        padding: r.insetsAll(12),
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(8),
                           border: Border.all(
@@ -669,18 +689,18 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                         child: Text(
                           error!,
-                          style: const TextStyle(
+                          style: TextStyle(
                             color: AppTheme.statusError,
-                            fontSize: 12,
+                            fontSize: r.sp(12),
                           ),
                         ),
                       ),
                     if (success != null)
                       Padding(
-                        padding: const EdgeInsets.only(top: 10),
+                        padding: EdgeInsets.only(top: r.dp(10)),
                         child: Container(
                           width: double.infinity,
-                          padding: const EdgeInsets.all(12),
+                          padding: r.insetsAll(12),
                           decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(8),
                             border: Border.all(
@@ -690,19 +710,19 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                           child: Text(
                             success!,
-                            style: const TextStyle(
+                            style: TextStyle(
                               color: AppTheme.statusSuccess,
-                              fontSize: 12,
+                              fontSize: r.sp(12),
                             ),
                           ),
                         ),
                       ),
-                    const SizedBox(height: 14),
+                    SizedBox(height: r.dp(14)),
 
                     // Information
                     Container(
                       width: double.infinity,
-                      padding: const EdgeInsets.all(14),
+                      padding: r.insetsAll(14),
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(color: AppTheme.borderDark),
@@ -711,29 +731,29 @@ class _HomeScreenState extends State<HomeScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
+                          Text(
                             'Information',
                             style: TextStyle(
                               color: AppTheme.textSecondary,
-                              fontSize: 13,
+                              fontSize: r.sp(13),
                               fontWeight: FontWeight.w700,
                             ),
                           ),
-                          const SizedBox(height: 12),
+                          SizedBox(height: r.dp(12)),
                           TextField(
                             controller: fullNameController,
                             decoration: const InputDecoration(
                               labelText: 'Full Name',
                             ),
                           ),
-                          const SizedBox(height: 12),
+                          SizedBox(height: r.dp(12)),
                           TextField(
                             controller: emailController,
                             decoration: const InputDecoration(
                               labelText: 'Email',
                             ),
                           ),
-                          const SizedBox(height: 12),
+                          SizedBox(height: r.dp(12)),
                           Align(
                             alignment: Alignment.centerRight,
                             child: ElevatedButton(
@@ -745,12 +765,12 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ),
 
-                    const SizedBox(height: 12),
+                    SizedBox(height: r.dp(12)),
 
                     // Password
                     Container(
                       width: double.infinity,
-                      padding: const EdgeInsets.all(14),
+                      padding: r.insetsAll(14),
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(color: AppTheme.borderDark),
@@ -759,15 +779,15 @@ class _HomeScreenState extends State<HomeScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
+                          Text(
                             'Password',
                             style: TextStyle(
                               color: AppTheme.textSecondary,
-                              fontSize: 13,
+                              fontSize: r.sp(13),
                               fontWeight: FontWeight.w700,
                             ),
                           ),
-                          const SizedBox(height: 12),
+                          SizedBox(height: r.dp(12)),
                           TextField(
                             controller: currentPasswordController,
                             obscureText: true,
@@ -775,7 +795,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               labelText: 'Current Password',
                             ),
                           ),
-                          const SizedBox(height: 12),
+                          SizedBox(height: r.dp(12)),
                           TextField(
                             controller: newPasswordController,
                             obscureText: true,
@@ -783,7 +803,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               labelText: 'New Password',
                             ),
                           ),
-                          const SizedBox(height: 12),
+                          SizedBox(height: r.dp(12)),
                           TextField(
                             controller: confirmPasswordController,
                             obscureText: true,
@@ -791,7 +811,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               labelText: 'Confirm New Password',
                             ),
                           ),
-                          const SizedBox(height: 12),
+                          SizedBox(height: r.dp(12)),
                           Align(
                             alignment: Alignment.centerRight,
                             child: ElevatedButton(
@@ -860,11 +880,11 @@ class _HomeScreenState extends State<HomeScreen> {
       builder: (BuildContext context) {
         return AlertDialog(
           backgroundColor: AppTheme.overlayBg,
-          title: const Text('About Infini-Stock'),
+          title: const Text('About InfoTrack'),
           content: const Text(
-            'Infini-Stock v1.0.0\n\n'
+            'InfoTrack v1.0.0\n\n'
             'An IoT-based inventory management system for tracking and managing assets, monitors, and system units.\n\n'
-            '© 2026 Infini-Stock. All rights reserved.',
+            '© 2026 InfoTrack. All rights reserved.',
           ),
           actions: [
             TextButton(
@@ -889,6 +909,7 @@ class _AccountMenuButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final r = Responsive.of(context);
     return Consumer<AuthProvider>(
       builder: (context, auth, _) {
         final fullName = (auth.currentUser?.fullName ?? '').trim();
@@ -940,8 +961,8 @@ class _AccountMenuButton extends StatelessWidget {
             if (selected == 'logout') onLogout();
           },
           child: Container(
-            height: 44,
-            width: 44,
+            height: r.dp(44),
+            width: r.dp(44),
             alignment: Alignment.center,
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(999),
@@ -954,10 +975,10 @@ class _AccountMenuButton extends StatelessWidget {
                 ? const Icon(Icons.person, color: AppTheme.lavender300)
                 : Text(
                     initials,
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: AppTheme.lavender300,
                       fontWeight: FontWeight.w800,
-                      fontSize: 13,
+                      fontSize: r.sp(13),
                     ),
                   ),
           ),
@@ -980,9 +1001,32 @@ InputDecoration _compactInputDecoration({
   required String label,
   String? hint,
   Widget? prefixIcon,
+  BuildContext? context,
+  bool requiredField = false,
 }) {
+  final effectiveContext = context;
+  final labelWidget = (effectiveContext != null && requiredField)
+      ? RichText(
+          text: TextSpan(
+            style:
+                (Theme.of(effectiveContext).inputDecorationTheme.labelStyle) ??
+                    Theme.of(effectiveContext).textTheme.bodyMedium,
+            children: [
+              TextSpan(text: label),
+              TextSpan(
+                text: ' *',
+                style: TextStyle(
+                  color: Theme.of(effectiveContext).colorScheme.error,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        )
+      : null;
   return InputDecoration(
-    labelText: label,
+    label: labelWidget,
+    labelText: labelWidget == null ? label : null,
     hintText: hint,
     prefixIcon: prefixIcon,
     isDense: true,
@@ -1070,15 +1114,16 @@ Future<void> _showPrintQrDialog(
       barrierDismissible: true,
       builder: (ctx) {
         debugPrint('🔍 [DEBUG] Building PrintQR Dialog');
+        final r = Responsive.of(ctx);
         return AlertDialog(
           backgroundColor: const Color(0xFF211339),
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(r.dp(14))),
           titlePadding: EdgeInsets.zero,
-          contentPadding: const EdgeInsets.all(24),
+          contentPadding: r.insetsAll(24),
           content: SingleChildScrollView(
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 340),
+              constraints: BoxConstraints(maxWidth: r.dp(340)),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.center,
@@ -1086,43 +1131,43 @@ Future<void> _showPrintQrDialog(
                   Text(
                     'Print QR: $title',
                     textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      fontSize: 18,
+                    style: TextStyle(
+                      fontSize: r.sp(18),
                       fontWeight: FontWeight.bold,
                       color: AppTheme.textPrimary,
                     ),
                   ),
-                  const SizedBox(height: 24),
+                  SizedBox(height: r.dp(24)),
                   Container(
-                    padding: const EdgeInsets.all(12),
+                    padding: r.insetsAll(12),
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: RepaintBoundary(
                       child: SizedBox(
-                        width: 160,
-                        height: 160,
+                        width: r.dp(160),
+                        height: r.dp(160),
                         child: QrImageView(
                           data: qrCode,
-                          size: 160,
+                          size: r.dp(160),
                         ),
                       ),
                     ),
                   ),
-                  const SizedBox(height: 20),
+                  SizedBox(height: r.dp(20)),
                   Text(
                     qrCode,
                     textAlign: TextAlign.center,
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: AppTheme.textSecondary,
-                      fontSize: 13,
+                      fontSize: r.sp(13),
                       fontWeight: FontWeight.w500,
                     ),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
-                  const SizedBox(height: 28),
+                  SizedBox(height: r.dp(28)),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     mainAxisSize: MainAxisSize.min,
@@ -1134,9 +1179,9 @@ Future<void> _showPrintQrDialog(
                         },
                         child: const Text('Close'),
                       ),
-                      const SizedBox(width: 12),
+                      SizedBox(width: r.dp(12)),
                       ElevatedButton.icon(
-                        icon: const Icon(Icons.share, size: 16),
+                        icon: Icon(Icons.share, size: r.icon(16)),
                         onPressed: () async {
                           debugPrint('🔍 [DEBUG] PrintQR Share button tapped');
                           await Share.share(
@@ -1209,26 +1254,32 @@ Future<void> _showAssetHistoryDialog(
   await showDialog<void>(
     context: context,
     builder: (ctx) {
+      final r = Responsive.of(ctx);
       final width = MediaQuery.of(ctx).size.width;
       final compact = width < 760;
       return AlertDialog(
         backgroundColor: AppTheme.primaryBg,
-        titlePadding: const EdgeInsets.fromLTRB(20, 18, 14, 10),
-        contentPadding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+        titlePadding: EdgeInsets.fromLTRB(
+          r.dp(20),
+          r.dp(18),
+          r.dp(14),
+          r.dp(10),
+        ),
+        contentPadding: EdgeInsets.fromLTRB(r.dp(20), 0, r.dp(20), r.dp(12)),
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text('Activity History'),
-            const SizedBox(height: 6),
+            SizedBox(height: r.dp(6)),
             Text(
               '$title${assetQrCode.isEmpty ? '' : ' ($assetQrCode)'}',
-              style: const TextStyle(
+              style: TextStyle(
                 color: AppTheme.textTertiary,
-                fontSize: 14,
+                fontSize: r.sp(14),
                 fontWeight: FontWeight.w500,
               ),
             ),
-            const SizedBox(height: 10),
+            SizedBox(height: r.dp(10)),
             const Divider(color: AppTheme.borderDark, height: 1),
           ],
         ),
@@ -1240,37 +1291,37 @@ Future<void> _showAssetHistoryDialog(
                   ? ListView.separated(
                       shrinkWrap: true,
                       itemCount: logs.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 10),
+                      separatorBuilder: (_, __) => SizedBox(height: r.dp(10)),
                       itemBuilder: (context, index) {
                         final log = logs[index];
                         return Container(
-                          padding: const EdgeInsets.all(12),
+                          padding: r.insetsAll(12),
                           decoration: _balancedInsetDecoration(),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
                                 '${DateFormat('M/d/yyyy, h:mm:ss a').format(log.timestamp)} • ${log.displayAction}',
-                                style: const TextStyle(
+                                style: TextStyle(
                                   color: AppTheme.textPrimary,
                                   fontWeight: FontWeight.w700,
-                                  fontSize: 12,
+                                  fontSize: r.sp(12),
                                 ),
                               ),
-                              const SizedBox(height: 6),
+                              SizedBox(height: r.dp(6)),
                               Text(
                                 'User: ${log.updaterDisplayName}',
-                                style: const TextStyle(
+                                style: TextStyle(
                                   color: AppTheme.textSecondary,
-                                  fontSize: 12,
+                                  fontSize: r.sp(12),
                                 ),
                               ),
-                              const SizedBox(height: 6),
+                              SizedBox(height: r.dp(6)),
                               Text(
                                 log.displayDetails,
-                                style: const TextStyle(
+                                style: TextStyle(
                                   color: AppTheme.textSecondary,
-                                  fontSize: 12,
+                                  fontSize: r.sp(12),
                                 ),
                               ),
                             ],
@@ -1284,10 +1335,10 @@ Future<void> _showAssetHistoryDialog(
                         headingRowColor: WidgetStateProperty.all(
                           AppTheme.primaryBg.withOpacity(0.55),
                         ),
-                        dataRowMinHeight: 44,
-                        dataRowMaxHeight: 58,
-                        horizontalMargin: 14,
-                        columnSpacing: 18,
+                        dataRowMinHeight: r.dp(44),
+                        dataRowMaxHeight: r.dp(58),
+                        horizontalMargin: r.dp(14),
+                        columnSpacing: r.dp(18),
                         columns: const [
                           DataColumn(label: Text('DATE/TIME')),
                           DataColumn(label: Text('ACTION')),
@@ -1299,7 +1350,7 @@ Future<void> _showAssetHistoryDialog(
                             cells: [
                               DataCell(
                                 SizedBox(
-                                  width: 160,
+                                  width: r.dp(160),
                                   child: Text(
                                     DateFormat('M/d/yyyy, h:mm:ss a')
                                         .format(log.timestamp),
@@ -1308,8 +1359,10 @@ Future<void> _showAssetHistoryDialog(
                               ),
                               DataCell(
                                 Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 10, vertical: 4),
+                                  padding: r.insetsSymmetric(
+                                    horizontal: 10,
+                                    vertical: 4,
+                                  ),
                                   decoration: BoxDecoration(
                                     color:
                                         AppTheme.lavender700.withOpacity(0.2),
@@ -1320,13 +1373,13 @@ Future<void> _showAssetHistoryDialog(
                               ),
                               DataCell(
                                 SizedBox(
-                                  width: 140,
+                                  width: r.dp(140),
                                   child: Text(log.updaterDisplayName),
                                 ),
                               ),
                               DataCell(
                                 SizedBox(
-                                  width: 360,
+                                  width: r.dp(360),
                                   child: Text(
                                     log.displayDetails,
                                     maxLines: 2,
@@ -1467,6 +1520,16 @@ Future<void> showAssetDetailsModal(
           ? ''
           : assetState['qrCode'].toString(),
     );
+    final modelTypeController = TextEditingController(
+      text: assetValue(assetState['modelType']) == '—'
+          ? ''
+          : (assetState['modelType']?.toString() ?? ''),
+    );
+    final serialNumberController = TextEditingController(
+      text: assetValue(assetState['serialNumber']) == '—'
+          ? ''
+          : (assetState['serialNumber']?.toString() ?? ''),
+    );
     final locationController = TextEditingController(
       text: assetValue(assetState['location']) == '—'
           ? ''
@@ -1476,6 +1539,11 @@ Future<void> showAssetDetailsModal(
       text: assetValue(assetState['description']) == '—'
           ? ''
           : (assetState['description']?.toString() ?? ''),
+    );
+    final notesController = TextEditingController(
+      text: assetValue(assetState['notes']) == '—'
+          ? ''
+          : (assetState['notes']?.toString() ?? ''),
     );
 
     final linkedKeyPrimary = isUnit ? 'linkedMonitorId' : 'linkedUnitId';
@@ -1492,12 +1560,158 @@ Future<void> showAssetDetailsModal(
             ? assetState['status'].toString()
             : 'active';
 
+    String selectedCondition =
+        (assetState['condition']?.toString().trim().isNotEmpty ?? false)
+            ? assetState['condition'].toString()
+            : 'good';
+
+    Uint8List? selectedImageBytes;
+    String? selectedImageBase64;
+    String? selectedImageName;
+
     try {
       final saved = await showDialog<bool>(
         context: dialogContext,
         builder: (ctx) {
           return StatefulBuilder(
             builder: (ctx, setEditState) {
+              Future<void> pickImage() async {
+                try {
+                  final picked = await ImagePicker()
+                      .pickImage(source: ImageSource.gallery);
+                  if (picked == null) return;
+
+                  final bytes = await picked.readAsBytes();
+                  if (bytes.isEmpty) return;
+
+                  setEditState(() {
+                    selectedImageBytes = bytes;
+                    selectedImageBase64 = base64Encode(bytes);
+                    selectedImageName = picked.name;
+                  });
+                } catch (e) {
+                  if (!ctx.mounted) return;
+                  ScaffoldMessenger.of(ctx).showSnackBar(
+                    SnackBar(content: Text('Failed to pick image: $e')),
+                  );
+                }
+              }
+
+              Widget imagePickerSection() {
+                Widget preview() {
+                  if (selectedImageBytes != null) {
+                    return Image.memory(
+                      selectedImageBytes!,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => const Center(
+                        child: Text(
+                          'Preview unavailable',
+                          style: TextStyle(color: AppTheme.textTertiary),
+                        ),
+                      ),
+                    );
+                  }
+
+                  final raw = assetState['imageData'];
+                  final s = (raw == null) ? '' : raw.toString().trim();
+                  if (s.isEmpty || s == '—') {
+                    return const Center(
+                      child: Text(
+                        'No image',
+                        style: TextStyle(color: AppTheme.textTertiary),
+                      ),
+                    );
+                  }
+
+                  final lower = s.toLowerCase();
+                  final isUrl = lower.startsWith('http://') ||
+                      lower.startsWith('https://');
+                  if (isUrl) {
+                    return Image.network(
+                      s,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => const Center(
+                        child: Text(
+                          'No image',
+                          style: TextStyle(color: AppTheme.textTertiary),
+                        ),
+                      ),
+                    );
+                  }
+
+                  var payload = s;
+                  if (payload.startsWith('data:')) {
+                    final comma = payload.indexOf(',');
+                    if (comma >= 0 && comma < payload.length - 1) {
+                      payload = payload.substring(comma + 1);
+                    }
+                  }
+                  try {
+                    final bytes = base64Decode(payload);
+                    return Image.memory(
+                      bytes,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => const Center(
+                        child: Text(
+                          'No image',
+                          style: TextStyle(color: AppTheme.textTertiary),
+                        ),
+                      ),
+                    );
+                  } catch (_) {
+                    return const Center(
+                      child: Text(
+                        'No image',
+                        style: TextStyle(color: AppTheme.textTertiary),
+                      ),
+                    );
+                  }
+                }
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        OutlinedButton.icon(
+                          onPressed: pickImage,
+                          icon: const Icon(Icons.upload_file),
+                          label: const Text('Choose File'),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            (selectedImageName == null ||
+                                    selectedImageName!.trim().isEmpty)
+                                ? 'No file selected'
+                                : selectedImageName!,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
+                                  color: AppTheme.textTertiary,
+                                ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Container(
+                      height: 120,
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        color: AppTheme.darkBg.withOpacity(0.65),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: AppTheme.borderDark),
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(10),
+                        child: preview(),
+                      ),
+                    ),
+                  ],
+                );
+              }
+
               return AlertDialog(
                 backgroundColor: AppTheme.primaryBg,
                 title: Text(isUnit ? 'Edit Unit' : 'Edit Monitor'),
@@ -1516,6 +1730,7 @@ Future<void> showAssetDetailsModal(
                         );
                         final qrField = TextField(
                           controller: qrCodeController,
+                          readOnly: true,
                           decoration: _compactInputDecoration(label: 'QR Code'),
                         );
                         final statusField = DropdownButtonFormField<String>(
@@ -1542,6 +1757,46 @@ Future<void> showAssetDetailsModal(
                           },
                           decoration: _compactInputDecoration(label: 'Status'),
                         );
+                        final conditionField = DropdownButtonFormField<String>(
+                          value: selectedCondition,
+                          isExpanded: true,
+                          items: const [
+                            DropdownMenuItem(value: 'new', child: Text('New')),
+                            DropdownMenuItem(
+                                value: 'good', child: Text('Good')),
+                            DropdownMenuItem(
+                                value: 'fair', child: Text('Fair')),
+                            DropdownMenuItem(
+                                value: 'poor', child: Text('Poor')),
+                          ],
+                          onChanged: (value) {
+                            if (value != null) {
+                              setEditState(() => selectedCondition = value);
+                            }
+                          },
+                          decoration:
+                              _compactInputDecoration(label: 'Condition'),
+                        );
+                        final modelTypeField = TextField(
+                          controller: modelTypeController,
+                          decoration: _compactInputDecoration(
+                            label: 'Model Type',
+                            hint: 'Optional',
+                          ),
+                        );
+                        final serialNumberField = TextField(
+                          controller: serialNumberController,
+                          keyboardType: TextInputType.number,
+                          inputFormatters: [
+                            FilteringTextInputFormatter.digitsOnly,
+                            LengthLimitingTextInputFormatter(5),
+                          ],
+                          maxLength: 5,
+                          decoration: _compactInputDecoration(
+                            label: 'Serial Number',
+                            hint: 'Optional',
+                          ).copyWith(counterText: ''),
+                        );
                         final linkedField = TextField(
                           controller: linkedController,
                           decoration: _compactInputDecoration(
@@ -1565,6 +1820,14 @@ Future<void> showAssetDetailsModal(
                             hint: 'Optional',
                           ),
                         );
+                        final notesField = TextField(
+                          controller: notesController,
+                          maxLines: 2,
+                          decoration: _compactInputDecoration(
+                            label: 'Notes',
+                            hint: 'Optional',
+                          ),
+                        );
 
                         Widget vGap([double h = 10]) => SizedBox(height: h);
 
@@ -1578,11 +1841,21 @@ Future<void> showAssetDetailsModal(
                               vGap(),
                               statusField,
                               vGap(),
+                              conditionField,
+                              vGap(),
+                              modelTypeField,
+                              vGap(),
+                              serialNumberField,
+                              vGap(),
                               linkedField,
                               vGap(),
                               locationField,
                               vGap(),
                               descriptionField,
+                              vGap(),
+                              notesField,
+                              vGap(),
+                              imagePickerSection(),
                             ],
                           );
                         }
@@ -1602,13 +1875,31 @@ Future<void> showAssetDetailsModal(
                               children: [
                                 Expanded(child: statusField),
                                 const SizedBox(width: 12),
-                                Expanded(child: linkedField),
+                                Expanded(child: conditionField),
                               ],
                             ),
                             vGap(),
-                            locationField,
+                            Row(
+                              children: [
+                                Expanded(child: modelTypeField),
+                                const SizedBox(width: 12),
+                                Expanded(child: serialNumberField),
+                              ],
+                            ),
+                            vGap(),
+                            Row(
+                              children: [
+                                Expanded(child: linkedField),
+                                const SizedBox(width: 12),
+                                Expanded(child: locationField),
+                              ],
+                            ),
                             vGap(),
                             descriptionField,
+                            vGap(),
+                            notesField,
+                            vGap(),
+                            imagePickerSection(),
                           ],
                         );
                       },
@@ -1633,21 +1924,36 @@ Future<void> showAssetDetailsModal(
 
       if (saved != true) return;
 
-      if (deviceNameController.text.trim().isEmpty ||
-          qrCodeController.text.trim().isEmpty) {
+      if (deviceNameController.text.trim().isEmpty) {
         ScaffoldMessenger.of(rootContext).showSnackBar(
-          const SnackBar(content: Text('Device Name and QR Code are required')),
+          const SnackBar(content: Text('Device Name is required')),
+        );
+        return;
+      }
+
+      final serial = serialNumberController.text.trim();
+      if (serial.isNotEmpty && !_isValidSerialNumber(serial)) {
+        ScaffoldMessenger.of(rootContext).showSnackBar(
+          const SnackBar(
+              content: Text('Serial Number must be exactly 5 digits')),
         );
         return;
       }
 
       final payload = <String, dynamic>{
         'deviceName': deviceNameController.text.trim(),
-        'qrCode': qrCodeController.text.trim(),
         'status': selectedStatus,
+        'condition': selectedCondition,
+        'modelType': modelTypeController.text.trim(),
+        'serialNumber': serialNumberController.text.trim(),
         'location': locationController.text.trim(),
         'description': descriptionController.text.trim(),
+        'notes': notesController.text.trim(),
       };
+
+      if (selectedImageBase64 != null) {
+        payload['imageData'] = selectedImageBase64;
+      }
 
       final linked = linkedController.text.trim();
       if (linked.isNotEmpty) {
@@ -1692,15 +1998,20 @@ Future<void> showAssetDetailsModal(
     } finally {
       deviceNameController.dispose();
       qrCodeController.dispose();
+      modelTypeController.dispose();
+      serialNumberController.dispose();
       locationController.dispose();
       descriptionController.dispose();
+      notesController.dispose();
       linkedController.dispose();
     }
   }
 
+  final r = Responsive.of(context);
+
   Widget detailBox(String label, dynamic value) {
     return Container(
-      padding: const EdgeInsets.all(10),
+      padding: r.insetsAll(10),
       decoration: BoxDecoration(
         color: AppTheme.darkBg,
         borderRadius: BorderRadius.circular(8),
@@ -1711,18 +2022,18 @@ Future<void> showAssetDetailsModal(
         children: [
           Text(
             label.toUpperCase(),
-            style: const TextStyle(
-              fontSize: 10,
+            style: TextStyle(
+              fontSize: r.sp(10),
               fontWeight: FontWeight.w700,
               color: AppTheme.textTertiary,
               letterSpacing: 0.6,
             ),
           ),
-          const SizedBox(height: 4),
+          SizedBox(height: r.dp(4)),
           Text(
             assetValue(value),
-            style: const TextStyle(
-              fontSize: 13,
+            style: TextStyle(
+              fontSize: r.sp(13),
               color: AppTheme.textPrimary,
               fontWeight: FontWeight.w600,
             ),
@@ -1745,30 +2056,34 @@ Future<void> showAssetDetailsModal(
           final canPrint = RBACManager.canPrintQR(currentUser);
           final title = assetValue(assetState['deviceName']);
           final qrCode = assetValue(assetState['qrCode']);
-          final isUnit = isUnitAsset(assetState);
 
           return Dialog(
             backgroundColor: Colors.transparent,
             insetPadding: EdgeInsets.symmetric(
-              horizontal: compact ? 10 : 24,
-              vertical: compact ? 10 : 24,
+              horizontal: compact ? r.dp(10) : r.dp(24),
+              vertical: compact ? r.dp(10) : r.dp(24),
             ),
             child: ConstrainedBox(
               constraints: BoxConstraints(
-                maxWidth: compact ? media.size.width - 20 : 860,
+                maxWidth: compact ? media.size.width - r.dp(20) : r.dp(860),
                 maxHeight: media.size.height * 0.92,
               ),
               child: Container(
                 decoration: BoxDecoration(
                   color: const Color(0xFF211339),
-                  borderRadius: BorderRadius.circular(18),
+                  borderRadius: BorderRadius.circular(r.dp(18)),
                   border: Border.all(color: AppTheme.borderDark),
                 ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Padding(
-                      padding: const EdgeInsets.fromLTRB(18, 16, 12, 12),
+                      padding: EdgeInsets.fromLTRB(
+                        r.dp(18),
+                        r.dp(16),
+                        r.dp(12),
+                        r.dp(12),
+                      ),
                       child: Row(
                         mainAxisSize: MainAxisSize.max,
                         children: [
@@ -1787,12 +2102,12 @@ Future<void> showAssetDetailsModal(
                                         fontWeight: FontWeight.w800,
                                       ),
                                 ),
-                                const SizedBox(height: 4),
+                                SizedBox(height: r.dp(4)),
                                 Text(
                                   'QR: $qrCode',
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     color: AppTheme.textTertiary,
-                                    fontSize: 13,
+                                    fontSize: r.sp(13),
                                   ),
                                 ),
                               ],
@@ -1807,25 +2122,29 @@ Future<void> showAssetDetailsModal(
                     ),
                     const Divider(height: 1, color: AppTheme.borderDark),
                     Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                      padding: EdgeInsets.fromLTRB(
+                        r.dp(16),
+                        r.dp(12),
+                        r.dp(16),
+                        r.dp(12),
+                      ),
                       child: Wrap(
-                        spacing: 10,
-                        runSpacing: 10,
+                        spacing: r.dp(10),
+                        runSpacing: r.dp(10),
                         alignment: WrapAlignment.start,
                         children: [
                           if (canEdit)
                             ElevatedButton.icon(
-                              icon: const Icon(Icons.edit, size: 18),
+                              icon: Icon(Icons.edit, size: r.icon(18)),
                               onPressed: () => editAssetFromDetails(
                                 ctx,
                                 setDialogState,
                               ),
-                              label:
-                                  Text(isUnit ? 'Edit Unit' : 'Edit Monitor'),
+                              label: const Text('Edit'),
                             ),
                           if (canPrint)
                             OutlinedButton.icon(
-                              icon: const Icon(Icons.qr_code_2, size: 18),
+                              icon: Icon(Icons.qr_code_2, size: r.icon(18)),
                               onPressed: () async {
                                 if (!RBACManager.canPrintQR(currentUser)) {
                                   ScaffoldMessenger.of(rootContext)
@@ -1852,7 +2171,7 @@ Future<void> showAssetDetailsModal(
                     const Divider(height: 1, color: AppTheme.borderDark),
                     Expanded(
                       child: SingleChildScrollView(
-                        padding: const EdgeInsets.all(16),
+                        padding: r.insetsAll(16),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
@@ -1860,28 +2179,62 @@ Future<void> showAssetDetailsModal(
                               builder: (context, constraints) {
                                 final narrow = constraints.maxWidth < 700;
                                 final imageSection = Container(
-                                  height: narrow ? 220 : 260,
+                                  height: narrow ? r.dp(220) : r.dp(260),
                                   decoration: BoxDecoration(
                                     color: AppTheme.primaryBg,
-                                    borderRadius: BorderRadius.circular(14),
+                                    borderRadius:
+                                        BorderRadius.circular(r.dp(14)),
                                     border:
                                         Border.all(color: AppTheme.borderDark),
                                   ),
                                   child: ClipRRect(
-                                    borderRadius: BorderRadius.circular(14),
-                                    child: assetValue(
-                                                assetState['imageData']) ==
-                                            '—'
-                                        ? const Center(
+                                    borderRadius:
+                                        BorderRadius.circular(r.dp(14)),
+                                    child: Builder(
+                                      builder: (context) {
+                                        final raw = assetState['imageData'];
+                                        final s = (raw == null)
+                                            ? ''
+                                            : raw.toString().trim();
+
+                                        bool isUrl(String v) {
+                                          final lower = v.toLowerCase();
+                                          return lower.startsWith('http://') ||
+                                              lower.startsWith('https://');
+                                        }
+
+                                        Uint8List? tryDecodeBase64(String v) {
+                                          var payload = v.trim();
+                                          if (payload.isEmpty) return null;
+                                          if (payload.startsWith('data:')) {
+                                            final comma = payload.indexOf(',');
+                                            if (comma >= 0 &&
+                                                comma < payload.length - 1) {
+                                              payload =
+                                                  payload.substring(comma + 1);
+                                            }
+                                          }
+                                          try {
+                                            return base64Decode(payload);
+                                          } catch (_) {
+                                            return null;
+                                          }
+                                        }
+
+                                        if (s.isEmpty || s == '—') {
+                                          return const Center(
                                             child: Text(
                                               'No image',
                                               style: TextStyle(
                                                 color: AppTheme.textTertiary,
                                               ),
                                             ),
-                                          )
-                                        : Image.network(
-                                            assetState['imageData'].toString(),
+                                          );
+                                        }
+
+                                        if (isUrl(s)) {
+                                          return Image.network(
+                                            s,
                                             fit: BoxFit.cover,
                                             errorBuilder: (_, __, ___) =>
                                                 const Center(
@@ -1892,22 +2245,52 @@ Future<void> showAssetDetailsModal(
                                                 ),
                                               ),
                                             ),
+                                          );
+                                        }
+
+                                        final bytes = tryDecodeBase64(s);
+                                        if (bytes == null || bytes.isEmpty) {
+                                          return const Center(
+                                            child: Text(
+                                              'No image',
+                                              style: TextStyle(
+                                                color: AppTheme.textTertiary,
+                                              ),
+                                            ),
+                                          );
+                                        }
+
+                                        return Image.memory(
+                                          bytes,
+                                          fit: BoxFit.cover,
+                                          errorBuilder: (_, __, ___) =>
+                                              const Center(
+                                            child: Text(
+                                              'No image',
+                                              style: TextStyle(
+                                                color: AppTheme.textTertiary,
+                                              ),
+                                            ),
                                           ),
+                                        );
+                                      },
+                                    ),
                                   ),
                                 );
 
                                 final qrSection = Container(
-                                  padding: const EdgeInsets.all(14),
+                                  padding: r.insetsAll(14),
                                   decoration: BoxDecoration(
                                     color: AppTheme.primaryBg,
-                                    borderRadius: BorderRadius.circular(14),
+                                    borderRadius:
+                                        BorderRadius.circular(r.dp(14)),
                                     border:
                                         Border.all(color: AppTheme.borderDark),
                                   ),
                                   child: ConstrainedBox(
-                                    constraints: const BoxConstraints(
-                                      minWidth: 160,
-                                      maxWidth: 220,
+                                    constraints: BoxConstraints(
+                                      minWidth: r.dp(160),
+                                      maxWidth: r.dp(220),
                                     ),
                                     child: Column(
                                       mainAxisSize: MainAxisSize.min,
@@ -1915,7 +2298,7 @@ Future<void> showAssetDetailsModal(
                                           CrossAxisAlignment.center,
                                       children: [
                                         Container(
-                                          padding: const EdgeInsets.all(8),
+                                          padding: r.insetsAll(8),
                                           decoration: BoxDecoration(
                                             color: Colors.white,
                                             borderRadius:
@@ -1923,8 +2306,8 @@ Future<void> showAssetDetailsModal(
                                           ),
                                           child: RepaintBoundary(
                                             child: SizedBox(
-                                              width: 140,
-                                              height: 140,
+                                              width: r.dp(140),
+                                              height: r.dp(140),
                                               child: QrImageView(
                                                 data: assetValue(assetState[
                                                             'qrCode']) ==
@@ -1932,20 +2315,20 @@ Future<void> showAssetDetailsModal(
                                                     ? 'N/A'
                                                     : assetState['qrCode']
                                                         .toString(),
-                                                size: 140,
+                                                size: r.dp(140),
                                               ),
                                             ),
                                           ),
                                         ),
-                                        const SizedBox(height: 12),
+                                        SizedBox(height: r.dp(12)),
                                         Flexible(
                                           child: Text(
                                             assetValue(assetState['qrCode']),
                                             textAlign: TextAlign.center,
-                                            style: const TextStyle(
+                                            style: TextStyle(
                                               color: AppTheme.textPrimary,
                                               fontWeight: FontWeight.w700,
-                                              fontSize: 12,
+                                              fontSize: r.sp(12),
                                             ),
                                             maxLines: 2,
                                             overflow: TextOverflow.ellipsis,
@@ -2237,53 +2620,20 @@ class DashboardTab extends StatelessWidget {
                       decoration: _balancedSurfaceDecoration(elevated: true),
                       child: LayoutBuilder(
                         builder: (context, constraints) {
+                          final r = Responsive.of(context);
                           if (constraints.maxWidth < 720) {
                             return ListView.separated(
                               shrinkWrap: true,
                               physics: const NeverScrollableScrollPhysics(),
-                              padding: const EdgeInsets.all(14),
+                              padding: r.insetsAll(14),
                               itemCount: recentLogs.length,
                               separatorBuilder: (_, __) =>
-                                  const SizedBox(height: 10),
+                                  SizedBox(height: r.dp(10)),
                               itemBuilder: (context, index) {
                                 final log = recentLogs[index];
-                                return Container(
-                                  padding: const EdgeInsets.all(12),
-                                  decoration: _balancedInsetDecoration(),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        '${_formatTime(log.timestamp)} • ${log.displayAction}',
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .bodySmall
-                                            ?.copyWith(
-                                              fontWeight: FontWeight.w700,
-                                              color: AppTheme.textPrimary,
-                                            ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        'QR: ${log.assetQrCode}',
-                                        style: const TextStyle(
-                                          color: AppTheme.textSecondary,
-                                          fontSize: 12,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        log.displayDetails,
-                                        maxLines: 2,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: const TextStyle(
-                                          color: AppTheme.textSecondary,
-                                          fontSize: 12,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
+                                return _ActivityLogCard(
+                                  log: log,
+                                  maxDetailLines: 6,
                                 );
                               },
                             );
@@ -2295,10 +2645,10 @@ class DashboardTab extends StatelessWidget {
                               headingRowColor: WidgetStateProperty.all(
                                 AppTheme.primaryBg.withOpacity(0.55),
                               ),
-                              dataRowMinHeight: 42,
-                              dataRowMaxHeight: 54,
-                              columnSpacing: 18,
-                              horizontalMargin: 14,
+                              dataRowMinHeight: r.dp(42),
+                              dataRowMaxHeight: r.dp(54),
+                              columnSpacing: r.dp(18),
+                              horizontalMargin: r.dp(14),
                               columns: const [
                                 DataColumn(label: Text('Time')),
                                 DataColumn(label: Text('Action')),
@@ -2311,29 +2661,29 @@ class DashboardTab extends StatelessWidget {
                                     DataCell(
                                       Text(
                                         _formatTime(log.timestamp),
-                                        style: const TextStyle(fontSize: 11),
+                                        style: TextStyle(fontSize: r.sp(11)),
                                       ),
                                     ),
                                     DataCell(
                                       Text(
                                         log.displayAction,
-                                        style: const TextStyle(fontSize: 11),
+                                        style: TextStyle(fontSize: r.sp(11)),
                                       ),
                                     ),
                                     DataCell(
                                       Text(
                                         log.assetQrCode,
-                                        style: const TextStyle(fontSize: 11),
+                                        style: TextStyle(fontSize: r.sp(11)),
                                       ),
                                     ),
                                     DataCell(
                                       SizedBox(
-                                        width: 200,
+                                        width: r.dp(200),
                                         child: Text(
                                           log.displayDetails,
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
-                                          style: const TextStyle(fontSize: 11),
+                                          style: TextStyle(fontSize: r.sp(11)),
                                         ),
                                       ),
                                     ),
@@ -2385,39 +2735,57 @@ class _StatCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final r = Responsive.of(context);
+
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: r.insetsAll(14),
       decoration: BoxDecoration(
         gradient: gradient,
         color: gradient == null ? AppTheme.darkBg.withOpacity(0.88) : null,
         border: Border.all(color: AppTheme.borderDark),
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(r.dp(14)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
                 child: Text(
-                  value.toString(),
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                        color: AppTheme.textPrimary,
+                  label.toUpperCase(),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppTheme.textTertiary,
                         fontWeight: FontWeight.w700,
+                        letterSpacing: 0.6,
+                        fontSize: r.sp(10),
                       ),
                 ),
               ),
-              Icon(icon, size: 18, color: color.withOpacity(0.9)),
+              Container(
+                width: r.dp(30),
+                height: r.dp(30),
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.16),
+                  borderRadius: BorderRadius.circular(r.dp(10)),
+                ),
+                child: Icon(
+                  icon,
+                  size: r.icon(16),
+                  color: color,
+                ),
+              ),
             ],
           ),
-          const SizedBox(height: 6),
+          SizedBox(height: r.dp(8)),
           Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: AppTheme.textSecondary,
-                  fontWeight: FontWeight.w600,
+            value.toString(),
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  color: AppTheme.textPrimary,
+                  fontWeight: FontWeight.w700,
+                  fontSize: r.sp(18),
                 ),
           ),
         ],
@@ -2483,19 +2851,117 @@ class _MonitorsTabState extends State<MonitorsTab> {
     final deviceNameController =
         TextEditingController(text: monitor.deviceName);
     final qrCodeController = TextEditingController(text: monitor.qrCode);
+    final modelTypeController =
+        TextEditingController(text: monitor.modelType ?? '');
+    final serialNumberController =
+        TextEditingController(text: monitor.serialNumber ?? '');
     final linkedUnitIdController =
         TextEditingController(text: monitor.linkedUnit ?? '');
     final locationController =
         TextEditingController(text: monitor.location ?? '');
     final descriptionController =
         TextEditingController(text: monitor.description ?? '');
+    final notesController = TextEditingController(text: monitor.notes ?? '');
     String selectedStatus = monitor.status;
+    String selectedCondition = (monitor.condition?.trim().isNotEmpty ?? false)
+        ? monitor.condition!.trim().toLowerCase()
+        : 'good';
+
+    Uint8List? selectedImageBytes;
+    String? selectedImageBase64;
+    String? selectedImageName;
 
     final saved = await showDialog<bool>(
       context: context,
       builder: (ctx) {
         return StatefulBuilder(
           builder: (ctx, setDialogState) {
+            Future<void> pickImage() async {
+              try {
+                final picked =
+                    await ImagePicker().pickImage(source: ImageSource.gallery);
+                if (picked == null) return;
+
+                final bytes = await picked.readAsBytes();
+                if (bytes.isEmpty) return;
+
+                setDialogState(() {
+                  selectedImageBytes = bytes;
+                  selectedImageBase64 = base64Encode(bytes);
+                  selectedImageName = picked.name;
+                });
+              } catch (e) {
+                if (!ctx.mounted) return;
+                ScaffoldMessenger.of(ctx).showSnackBar(
+                  SnackBar(content: Text('Failed to pick image: $e')),
+                );
+              }
+            }
+
+            Widget imagePickerSection() {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      OutlinedButton.icon(
+                        onPressed: pickImage,
+                        icon: const Icon(Icons.upload_file),
+                        label: const Text('Choose File'),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          (selectedImageName == null ||
+                                  selectedImageName!.trim().isEmpty)
+                              ? 'No file selected'
+                              : selectedImageName!,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
+                                color: AppTheme.textTertiary,
+                              ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Container(
+                    height: 120,
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      color: AppTheme.darkBg.withOpacity(0.65),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: AppTheme.borderDark),
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: selectedImageBytes == null
+                          ? const Center(
+                              child: Text(
+                                'No new image selected',
+                                style: TextStyle(
+                                  color: AppTheme.textTertiary,
+                                ),
+                              ),
+                            )
+                          : Image.memory(
+                              selectedImageBytes!,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => const Center(
+                                child: Text(
+                                  'Preview unavailable',
+                                  style:
+                                      TextStyle(color: AppTheme.textTertiary),
+                                ),
+                              ),
+                            ),
+                    ),
+                  ),
+                ],
+              );
+            }
+
             return AlertDialog(
               backgroundColor: AppTheme.primaryBg,
               title: const Text('Edit Monitor'),
@@ -2513,6 +2979,7 @@ class _MonitorsTabState extends State<MonitorsTab> {
                       );
                       final qrField = TextField(
                         controller: qrCodeController,
+                        readOnly: true,
                         decoration: _compactInputDecoration(label: 'QR Code'),
                       );
                       final statusField = DropdownButtonFormField<String>(
@@ -2539,6 +3006,42 @@ class _MonitorsTabState extends State<MonitorsTab> {
                         },
                         decoration: _compactInputDecoration(label: 'Status'),
                       );
+                      final conditionField = DropdownButtonFormField<String>(
+                        value: selectedCondition,
+                        isExpanded: true,
+                        items: const [
+                          DropdownMenuItem(value: 'new', child: Text('New')),
+                          DropdownMenuItem(value: 'good', child: Text('Good')),
+                          DropdownMenuItem(value: 'fair', child: Text('Fair')),
+                          DropdownMenuItem(value: 'poor', child: Text('Poor')),
+                        ],
+                        onChanged: (value) {
+                          if (value != null) {
+                            setDialogState(() => selectedCondition = value);
+                          }
+                        },
+                        decoration: _compactInputDecoration(label: 'Condition'),
+                      );
+                      final modelTypeField = TextField(
+                        controller: modelTypeController,
+                        decoration: _compactInputDecoration(
+                          label: 'Model Type',
+                          hint: 'Optional',
+                        ),
+                      );
+                      final serialNumberField = TextField(
+                        controller: serialNumberController,
+                        keyboardType: TextInputType.number,
+                        inputFormatters: [
+                          FilteringTextInputFormatter.digitsOnly,
+                          LengthLimitingTextInputFormatter(5),
+                        ],
+                        maxLength: 5,
+                        decoration: _compactInputDecoration(
+                          label: 'Serial Number',
+                          hint: 'Optional',
+                        ).copyWith(counterText: ''),
+                      );
                       final linkedField = TextField(
                         controller: linkedUnitIdController,
                         decoration: _compactInputDecoration(
@@ -2561,6 +3064,14 @@ class _MonitorsTabState extends State<MonitorsTab> {
                           hint: 'Optional',
                         ),
                       );
+                      final notesField = TextField(
+                        controller: notesController,
+                        maxLines: 2,
+                        decoration: _compactInputDecoration(
+                          label: 'Notes',
+                          hint: 'Optional',
+                        ),
+                      );
 
                       Widget vGap([double h = 10]) => SizedBox(height: h);
 
@@ -2574,11 +3085,21 @@ class _MonitorsTabState extends State<MonitorsTab> {
                             vGap(),
                             statusField,
                             vGap(),
+                            conditionField,
+                            vGap(),
+                            modelTypeField,
+                            vGap(),
+                            serialNumberField,
+                            vGap(),
                             linkedField,
                             vGap(),
                             locationField,
                             vGap(),
                             descriptionField,
+                            vGap(),
+                            notesField,
+                            vGap(),
+                            imagePickerSection(),
                           ],
                         );
                       }
@@ -2598,13 +3119,31 @@ class _MonitorsTabState extends State<MonitorsTab> {
                             children: [
                               Expanded(child: statusField),
                               const SizedBox(width: 12),
-                              Expanded(child: linkedField),
+                              Expanded(child: conditionField),
                             ],
                           ),
                           vGap(),
-                          locationField,
+                          Row(
+                            children: [
+                              Expanded(child: modelTypeField),
+                              const SizedBox(width: 12),
+                              Expanded(child: serialNumberField),
+                            ],
+                          ),
+                          vGap(),
+                          Row(
+                            children: [
+                              Expanded(child: linkedField),
+                              const SizedBox(width: 12),
+                              Expanded(child: locationField),
+                            ],
+                          ),
                           vGap(),
                           descriptionField,
+                          vGap(),
+                          notesField,
+                          vGap(),
+                          imagePickerSection(),
                         ],
                       );
                     },
@@ -2629,10 +3168,17 @@ class _MonitorsTabState extends State<MonitorsTab> {
 
     if (saved != true) return;
 
-    if (deviceNameController.text.trim().isEmpty ||
-        qrCodeController.text.trim().isEmpty) {
+    if (deviceNameController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Device Name and QR Code are required')),
+        const SnackBar(content: Text('Device Name is required')),
+      );
+      return;
+    }
+
+    final serial = serialNumberController.text.trim();
+    if (serial.isNotEmpty && !_isValidSerialNumber(serial)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Serial Number must be exactly 5 digits')),
       );
       return;
     }
@@ -2641,16 +3187,21 @@ class _MonitorsTabState extends State<MonitorsTab> {
       debugPrint('🔍 [DEBUG] Building update payload for monitor');
       final payload = <String, dynamic>{
         'deviceName': deviceNameController.text.trim(),
-        'qrCode': qrCodeController.text.trim(),
         'status': selectedStatus,
+        'condition': selectedCondition,
+        'modelType': modelTypeController.text.trim(),
+        'serialNumber': serialNumberController.text.trim(),
         'location': locationController.text.trim(),
         'description': descriptionController.text.trim(),
+        'notes': notesController.text.trim(),
       };
 
-      final linked = linkedUnitIdController.text.trim();
-      if (linked.isNotEmpty) {
-        payload['linkedUnitId'] = linked;
+      if (selectedImageBase64 != null) {
+        payload['imageData'] = selectedImageBase64;
       }
+
+      final linked = linkedUnitIdController.text.trim();
+      payload['linkedUnitId'] = linked.isEmpty ? null : linked;
 
       debugPrint('🔍 [DEBUG] Sending update request: $payload');
       await ApiClient().updateMonitor(monitor.id, payload);
@@ -2793,169 +3344,459 @@ class _MonitorsTabState extends State<MonitorsTab> {
   Future<void> _showAddMonitorDialog(BuildContext context) async {
     final deviceNameController = TextEditingController();
     final qrCodeController = TextEditingController();
+    final modelTypeController = TextEditingController();
+    final serialNumberController = TextEditingController();
     final linkedUnitIdController = TextEditingController();
+    final locationController = TextEditingController();
     final descriptionController = TextEditingController();
+    final notesController = TextEditingController();
     String selectedStatus = 'active';
+    String selectedCondition = 'good';
 
-    final saved = await showDialog<bool>(
-      context: context,
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (ctx, setDialogState) {
-            return AlertDialog(
-              backgroundColor: AppTheme.primaryBg,
-              title: const Text('Add New Monitor'),
-              content: SingleChildScrollView(
+    Uint8List? selectedImageBytes;
+    String? selectedImageBase64;
+    String? selectedImageName;
+
+    try {
+      final saved = await showDialog<bool>(
+        context: context,
+        builder: (ctx) {
+          return StatefulBuilder(
+            builder: (ctx, setDialogState) {
+              final maxDialogHeight = MediaQuery.sizeOf(ctx).height * 0.85;
+
+              Future<void> pickImage() async {
+                try {
+                  final picked = await ImagePicker()
+                      .pickImage(source: ImageSource.gallery);
+                  if (picked == null) return;
+
+                  final bytes = await picked.readAsBytes();
+                  if (bytes.isEmpty) return;
+
+                  setDialogState(() {
+                    selectedImageBytes = bytes;
+                    selectedImageBase64 = base64Encode(bytes);
+                    selectedImageName = picked.name;
+                  });
+                } catch (e) {
+                  if (!ctx.mounted) return;
+                  ScaffoldMessenger.of(ctx).showSnackBar(
+                    SnackBar(content: Text('Failed to pick image: $e')),
+                  );
+                }
+              }
+
+              Widget imagePickerSection() {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        OutlinedButton.icon(
+                          onPressed: pickImage,
+                          icon: const Icon(Icons.upload_file),
+                          label: const Text('Choose File'),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            (selectedImageName == null ||
+                                    selectedImageName!.trim().isEmpty)
+                                ? 'No file selected'
+                                : selectedImageName!,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
+                                  color: AppTheme.textTertiary,
+                                ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Container(
+                      height: 120,
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        color: AppTheme.darkBg.withOpacity(0.65),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: AppTheme.borderDark),
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(10),
+                        child: selectedImageBytes == null
+                            ? const Center(
+                                child: Text(
+                                  'No image selected',
+                                  style: TextStyle(
+                                    color: AppTheme.textTertiary,
+                                  ),
+                                ),
+                              )
+                            : Image.memory(
+                                selectedImageBytes!,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) => const Center(
+                                  child: Text(
+                                    'Preview unavailable',
+                                    style:
+                                        TextStyle(color: AppTheme.textTertiary),
+                                  ),
+                                ),
+                              ),
+                      ),
+                    ),
+                  ],
+                );
+              }
+
+              final serial = serialNumberController.text.trim();
+              final serialOk = serial.isEmpty || _isValidSerialNumber(serial);
+              final canSubmit = deviceNameController.text.trim().isNotEmpty &&
+                  qrCodeController.text.trim().isNotEmpty &&
+                  serialOk;
+
+              return Dialog(
+                backgroundColor: AppTheme.primaryBg,
+                insetPadding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 24,
+                ),
                 child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 560),
-                  child: LayoutBuilder(
-                    builder: (context, constraints) {
-                      final availableWidth = constraints.maxWidth.isFinite &&
-                              constraints.maxWidth > 0
-                          ? constraints.maxWidth
-                          : 560.0;
-                      final twoCol = availableWidth >= 460;
+                  constraints: BoxConstraints(
+                    maxWidth: 560,
+                    maxHeight: maxDialogHeight,
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Text(
+                          'Add New Monitor',
+                          style: Theme.of(ctx).textTheme.titleLarge,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Enter the details for the new monitor',
+                          style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
+                                color: AppTheme.textTertiary,
+                              ),
+                        ),
+                        const SizedBox(height: 12),
+                        Expanded(
+                          child: SingleChildScrollView(
+                            child: LayoutBuilder(
+                              builder: (context, constraints) {
+                                final availableWidth =
+                                    constraints.maxWidth.isFinite &&
+                                            constraints.maxWidth > 0
+                                        ? constraints.maxWidth
+                                        : 560.0;
+                                final twoCol = availableWidth >= 460;
 
-                      final nameField = TextField(
-                        controller: deviceNameController,
-                        decoration:
-                            _compactInputDecoration(label: 'Device Name'),
-                      );
-                      final qrField = TextField(
-                        controller: qrCodeController,
-                        decoration: _compactInputDecoration(label: 'QR Code'),
-                      );
-                      final statusField = DropdownButtonFormField<String>(
-                        value: selectedStatus,
-                        isExpanded: true,
-                        items: const [
-                          DropdownMenuItem(
-                              value: 'active', child: Text('Active')),
-                          DropdownMenuItem(
-                              value: 'inactive', child: Text('Inactive')),
-                          DropdownMenuItem(
-                            value: 'maintenance',
-                            child: Text('Maintenance'),
+                                final nameField = TextField(
+                                  controller: deviceNameController,
+                                  onChanged: (_) => setDialogState(() {}),
+                                  decoration: _compactInputDecoration(
+                                    label: 'Device Name',
+                                    context: ctx,
+                                    requiredField: true,
+                                  ),
+                                );
+                                final qrField = TextField(
+                                  controller: qrCodeController,
+                                  onChanged: (_) => setDialogState(() {}),
+                                  decoration: _compactInputDecoration(
+                                    label: 'QR Code',
+                                    context: ctx,
+                                    requiredField: true,
+                                  ),
+                                );
+                                final statusField =
+                                    DropdownButtonFormField<String>(
+                                  value: selectedStatus,
+                                  isExpanded: true,
+                                  items: const [
+                                    DropdownMenuItem(
+                                      value: 'active',
+                                      child: Text('Active'),
+                                    ),
+                                    DropdownMenuItem(
+                                      value: 'inactive',
+                                      child: Text('Inactive'),
+                                    ),
+                                    DropdownMenuItem(
+                                      value: 'maintenance',
+                                      child: Text('Maintenance'),
+                                    ),
+                                    DropdownMenuItem(
+                                      value: 'broken',
+                                      child: Text('Broken'),
+                                    ),
+                                    DropdownMenuItem(
+                                      value: 'repair',
+                                      child: Text('Repair'),
+                                    ),
+                                  ],
+                                  onChanged: (value) {
+                                    if (value != null) {
+                                      setDialogState(
+                                          () => selectedStatus = value);
+                                    }
+                                  },
+                                  decoration: _compactInputDecoration(
+                                    label: 'Status',
+                                    context: ctx,
+                                    requiredField: true,
+                                  ),
+                                );
+                                final conditionField =
+                                    DropdownButtonFormField<String>(
+                                  value: selectedCondition,
+                                  isExpanded: true,
+                                  items: const [
+                                    DropdownMenuItem(
+                                        value: 'new', child: Text('New')),
+                                    DropdownMenuItem(
+                                        value: 'good', child: Text('Good')),
+                                    DropdownMenuItem(
+                                        value: 'fair', child: Text('Fair')),
+                                    DropdownMenuItem(
+                                        value: 'poor', child: Text('Poor')),
+                                  ],
+                                  onChanged: (value) {
+                                    if (value != null) {
+                                      setDialogState(
+                                          () => selectedCondition = value);
+                                    }
+                                  },
+                                  decoration: _compactInputDecoration(
+                                    label: 'Condition',
+                                    context: ctx,
+                                    requiredField: true,
+                                  ),
+                                );
+                                final modelTypeField = TextField(
+                                  controller: modelTypeController,
+                                  decoration: _compactInputDecoration(
+                                    label: 'Model Type',
+                                    hint: 'Optional',
+                                  ),
+                                );
+                                final serialNumberField = TextField(
+                                  controller: serialNumberController,
+                                  keyboardType: TextInputType.number,
+                                  inputFormatters: [
+                                    FilteringTextInputFormatter.digitsOnly,
+                                    LengthLimitingTextInputFormatter(5),
+                                  ],
+                                  maxLength: 5,
+                                  onChanged: (_) => setDialogState(() {}),
+                                  decoration: _compactInputDecoration(
+                                    label: 'Serial Number',
+                                    hint: 'Optional',
+                                  ).copyWith(counterText: ''),
+                                );
+                                final linkedField = TextField(
+                                  controller: linkedUnitIdController,
+                                  decoration: _compactInputDecoration(
+                                    label: 'Linked Unit ID',
+                                    hint: 'Optional',
+                                  ),
+                                );
+                                final locationField = TextField(
+                                  controller: locationController,
+                                  decoration: _compactInputDecoration(
+                                    label: 'Location',
+                                    hint: 'Optional',
+                                  ),
+                                );
+                                final descriptionField = TextField(
+                                  controller: descriptionController,
+                                  maxLines: 2,
+                                  decoration: _compactInputDecoration(
+                                    label: 'Description',
+                                    hint: 'Optional',
+                                  ),
+                                );
+                                final notesField = TextField(
+                                  controller: notesController,
+                                  maxLines: 2,
+                                  decoration: _compactInputDecoration(
+                                    label: 'Notes',
+                                    hint: 'Optional',
+                                  ),
+                                );
+
+                                Widget vGap([double h = 10]) => SizedBox(
+                                      height: h,
+                                    );
+
+                                if (!twoCol) {
+                                  return Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      nameField,
+                                      vGap(),
+                                      qrField,
+                                      vGap(),
+                                      statusField,
+                                      vGap(),
+                                      conditionField,
+                                      vGap(),
+                                      modelTypeField,
+                                      vGap(),
+                                      serialNumberField,
+                                      vGap(),
+                                      linkedField,
+                                      vGap(),
+                                      locationField,
+                                      vGap(),
+                                      notesField,
+                                      vGap(),
+                                      descriptionField,
+                                      vGap(),
+                                      imagePickerSection(),
+                                    ],
+                                  );
+                                }
+
+                                return Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Expanded(child: nameField),
+                                        const SizedBox(width: 12),
+                                        Expanded(child: qrField),
+                                      ],
+                                    ),
+                                    vGap(),
+                                    Row(
+                                      children: [
+                                        Expanded(child: statusField),
+                                        const SizedBox(width: 12),
+                                        Expanded(child: conditionField),
+                                      ],
+                                    ),
+                                    vGap(),
+                                    Row(
+                                      children: [
+                                        Expanded(child: modelTypeField),
+                                        const SizedBox(width: 12),
+                                        Expanded(child: serialNumberField),
+                                      ],
+                                    ),
+                                    vGap(),
+                                    Row(
+                                      children: [
+                                        Expanded(child: linkedField),
+                                        const SizedBox(width: 12),
+                                        Expanded(child: locationField),
+                                      ],
+                                    ),
+                                    vGap(),
+                                    notesField,
+                                    vGap(),
+                                    descriptionField,
+                                    vGap(),
+                                    imagePickerSection(),
+                                  ],
+                                );
+                              },
+                            ),
                           ),
-                        ],
-                        onChanged: (value) {
-                          if (value != null) {
-                            setDialogState(() => selectedStatus = value);
-                          }
-                        },
-                        decoration: _compactInputDecoration(label: 'Status'),
-                      );
-                      final linkedField = TextField(
-                        controller: linkedUnitIdController,
-                        decoration: _compactInputDecoration(
-                          label: 'Linked Unit ID',
-                          hint: 'Optional',
                         ),
-                      );
-                      final descriptionField = TextField(
-                        controller: descriptionController,
-                        maxLines: 2,
-                        decoration: _compactInputDecoration(
-                          label: 'Description',
-                          hint: 'Optional',
-                        ),
-                      );
-
-                      Widget vGap([double h = 10]) => SizedBox(height: h);
-
-                      if (!twoCol) {
-                        return Column(
-                          mainAxisSize: MainAxisSize.min,
+                        const SizedBox(height: 12),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
                           children: [
-                            nameField,
-                            vGap(),
-                            qrField,
-                            vGap(),
-                            statusField,
-                            vGap(),
-                            linkedField,
-                            vGap(),
-                            descriptionField,
+                            TextButton(
+                              onPressed: () => Navigator.pop(ctx, false),
+                              child: const Text('Cancel'),
+                            ),
+                            const SizedBox(width: 8),
+                            ElevatedButton.icon(
+                              onPressed: canSubmit
+                                  ? () => Navigator.pop(ctx, true)
+                                  : null,
+                              icon: const Icon(Icons.add),
+                              label: const Text('Add Monitor'),
+                            ),
                           ],
-                        );
-                      }
-
-                      return Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Row(
-                            children: [
-                              Expanded(child: nameField),
-                              const SizedBox(width: 12),
-                              Expanded(child: qrField),
-                            ],
-                          ),
-                          vGap(),
-                          Row(
-                            children: [
-                              Expanded(child: statusField),
-                              const SizedBox(width: 12),
-                              Expanded(child: linkedField),
-                            ],
-                          ),
-                          vGap(),
-                          descriptionField,
-                        ],
-                      );
-                    },
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx, false),
-                  child: const Text('Cancel'),
-                ),
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx, true),
-                  child: const Text('Add Monitor'),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-
-    if (saved != true) return;
-
-    if (deviceNameController.text.trim().isEmpty ||
-        qrCodeController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Device Name and QR Code are required')),
+              );
+            },
+          );
+        },
       );
-      return;
+
+      if (saved != true) return;
+
+      if (deviceNameController.text.trim().isEmpty ||
+          qrCodeController.text.trim().isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Device Name and QR Code are required')),
+        );
+        return;
+      }
+
+      final serial = serialNumberController.text.trim();
+      if (serial.isNotEmpty && !_isValidSerialNumber(serial)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text('Serial Number must be exactly 5 digits')),
+        );
+        return;
+      }
+
+      final provider = context.read<MonitorProvider>();
+      final ok = await provider.createMonitor(
+        deviceNameController.text.trim(),
+        qrCodeController.text.trim(),
+        selectedStatus,
+        condition: selectedCondition,
+        modelType: modelTypeController.text.trim(),
+        serialNumber: serialNumberController.text.trim(),
+        linkedUnitId: linkedUnitIdController.text.trim(),
+        location: locationController.text.trim(),
+        description: descriptionController.text.trim(),
+        notes: notesController.text.trim(),
+        imageData: selectedImageBase64,
+      );
+
+      if (!context.mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(ok
+              ? 'Monitor added successfully'
+              : (provider.error ?? 'Failed to add monitor')),
+        ),
+      );
+    } finally {
+      deviceNameController.dispose();
+      qrCodeController.dispose();
+      modelTypeController.dispose();
+      serialNumberController.dispose();
+      linkedUnitIdController.dispose();
+      locationController.dispose();
+      descriptionController.dispose();
+      notesController.dispose();
     }
-
-    final provider = context.read<MonitorProvider>();
-    final ok = await provider.createMonitor(
-      deviceNameController.text.trim(),
-      qrCodeController.text.trim(),
-      selectedStatus,
-      linkedUnitId: linkedUnitIdController.text.trim(),
-      description: descriptionController.text.trim(),
-    );
-
-    if (!context.mounted) return;
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(ok
-            ? 'Monitor added successfully'
-            : (provider.error ?? 'Failed to add monitor')),
-      ),
-    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Consumer<MonitorProvider>(
       builder: (context, provider, _) {
+        final r = Responsive.of(context);
         final filtered = provider.monitors.where((m) {
           final statusOk = _statusFilter == 'all' ||
               m.status.toLowerCase() == _statusFilter.toLowerCase();
@@ -2971,7 +3812,7 @@ class _MonitorsTabState extends State<MonitorsTab> {
         return Column(
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+              padding: EdgeInsets.fromLTRB(r.dp(16), r.dp(12), r.dp(16), 0),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -2986,20 +3827,20 @@ class _MonitorsTabState extends State<MonitorsTab> {
                         onPressed: provider.fetchMonitors,
                         icon: const Icon(Icons.refresh),
                       ),
-                      const SizedBox(width: 8),
+                      SizedBox(width: r.dp(8)),
                       OutlinedButton.icon(
                         onPressed: () => _exportMonitorsCsv(context, filtered),
-                        icon: const Icon(Icons.download, size: 14),
-                        label: const Text('Export CSV',
-                            style: TextStyle(fontSize: 11)),
+                        icon: Icon(Icons.download, size: r.icon(14)),
+                        label: Text('Export CSV',
+                            style: TextStyle(fontSize: r.sp(11))),
                         style: OutlinedButton.styleFrom(
-                          minimumSize: const Size(0, 32),
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 8),
+                          minimumSize: Size(0, r.dp(32)),
+                          padding:
+                              r.insetsSymmetric(horizontal: 10, vertical: 8),
                           visualDensity: VisualDensity.compact,
                         ),
                       ),
-                      const SizedBox(width: 8),
+                      SizedBox(width: r.dp(8)),
                       Consumer<AuthProvider>(
                         builder: (context, auth, _) {
                           final canAddMonitor =
@@ -3008,12 +3849,12 @@ class _MonitorsTabState extends State<MonitorsTab> {
                             onPressed: canAddMonitor
                                 ? () => _showAddMonitorDialog(context)
                                 : null,
-                            icon: const Icon(Icons.add, size: 13),
-                            label: const Text('Add Monitor',
-                                style: TextStyle(fontSize: 11)),
+                            icon: Icon(Icons.add, size: r.icon(13)),
+                            label: Text('Add Monitor',
+                                style: TextStyle(fontSize: r.sp(11))),
                             style: ElevatedButton.styleFrom(
-                              minimumSize: const Size(0, 32),
-                              padding: const EdgeInsets.symmetric(
+                              minimumSize: Size(0, r.dp(32)),
+                              padding: r.insetsSymmetric(
                                   horizontal: 10, vertical: 8),
                               visualDensity: VisualDensity.compact,
                             ),
@@ -3026,7 +3867,7 @@ class _MonitorsTabState extends State<MonitorsTab> {
               ),
             ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+              padding: EdgeInsets.fromLTRB(r.dp(16), r.dp(10), r.dp(16), 0),
               child: LayoutBuilder(
                 builder: (context, constraints) {
                   final twoCol = constraints.maxWidth >= 700;
@@ -3034,8 +3875,8 @@ class _MonitorsTabState extends State<MonitorsTab> {
                       ? (constraints.maxWidth - 12) / 2
                       : constraints.maxWidth;
                   return Wrap(
-                    spacing: 12,
-                    runSpacing: 10,
+                    spacing: r.dp(12),
+                    runSpacing: r.dp(10),
                     children: [
                       SizedBox(
                         width: fieldWidth,
@@ -3157,10 +3998,10 @@ class _MonitorsTabState extends State<MonitorsTab> {
                                                     const SizedBox(height: 2),
                                                     Text(
                                                       monitor.qrCode,
-                                                      style: const TextStyle(
+                                                      style: TextStyle(
                                                         color: AppTheme
                                                             .textTertiary,
-                                                        fontSize: 11,
+                                                        fontSize: r.sp(11),
                                                       ),
                                                     ),
                                                   ],
@@ -3302,8 +4143,8 @@ class _MonitorsTabState extends State<MonitorsTab> {
                                   dataRowMaxHeight: 58,
                                   dividerThickness: 0.8,
                                   columns: const [
+                                    DataColumn(label: Text('Device ID')),
                                     DataColumn(label: Text('Device Name')),
-                                    DataColumn(label: Text('QR Code')),
                                     DataColumn(label: Text('Status')),
                                     DataColumn(label: Text('Linked Unit')),
                                     DataColumn(label: Text('Description')),
@@ -3317,8 +4158,21 @@ class _MonitorsTabState extends State<MonitorsTab> {
                                         _monitorToAssetMap(monitor),
                                       ),
                                       cells: [
+                                        DataCell(
+                                          SizedBox(
+                                            width: 220,
+                                            child: Tooltip(
+                                              message: monitor.id,
+                                              child: Text(
+                                                _infocomDeviceIdFromUuid(
+                                                    monitor.id),
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
                                         DataCell(Text(monitor.deviceName)),
-                                        DataCell(Text(monitor.qrCode)),
                                         DataCell(_StatusBadge(
                                             status: monitor.status)),
                                         DataCell(
@@ -3414,6 +4268,7 @@ class _StatusBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final r = Responsive.of(context);
     Color bgColor;
     Color textColor;
 
@@ -3436,10 +4291,10 @@ class _StatusBadge extends StatelessWidget {
     }
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: r.insetsSymmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: bgColor,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(r.dp(12)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -3448,7 +4303,7 @@ class _StatusBadge extends StatelessWidget {
             status[0].toUpperCase() + status.substring(1),
             style: TextStyle(
               color: textColor,
-              fontSize: 10,
+              fontSize: r.sp(10),
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -3465,8 +4320,9 @@ class _ChipPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final r = Responsive.of(context);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: r.insetsSymmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: AppTheme.primaryBg.withOpacity(0.28),
         borderRadius: BorderRadius.circular(999),
@@ -3476,11 +4332,109 @@ class _ChipPill extends StatelessWidget {
         label,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
-        style: const TextStyle(
+        style: TextStyle(
           color: AppTheme.textSecondary,
-          fontSize: 11,
+          fontSize: r.sp(11),
           fontWeight: FontWeight.w600,
         ),
+      ),
+    );
+  }
+}
+
+class _ActivityLogCard extends StatelessWidget {
+  final ActivityLog log;
+  final int maxDetailLines;
+
+  const _ActivityLogCard({
+    required this.log,
+    required this.maxDetailLines,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final r = Responsive.of(context);
+    final details = (log.description?.trim().isNotEmpty ?? false)
+        ? log.description!.trim()
+        : log.displayDetails;
+
+    return Container(
+      padding: r.insetsAll(12),
+      decoration: _balancedInsetDecoration(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: r.dp(36),
+                height: r.dp(36),
+                decoration: BoxDecoration(
+                  color: AppTheme.lavender600.withOpacity(0.16),
+                  borderRadius: BorderRadius.circular(r.dp(10)),
+                ),
+                child: Icon(
+                  Icons.history,
+                  size: r.icon(18),
+                  color: AppTheme.lavender300,
+                ),
+              ),
+              SizedBox(width: r.dp(10)),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      log.timestamp.toString().split('.').first,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            fontWeight: FontWeight.w800,
+                            color: AppTheme.textPrimary,
+                          ),
+                    ),
+                    SizedBox(height: r.dp(2)),
+                    Text(
+                      log.displayAction,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            fontWeight: FontWeight.w800,
+                            color: AppTheme.textPrimary,
+                          ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: r.dp(10)),
+          Wrap(
+            spacing: r.dp(8),
+            runSpacing: r.dp(8),
+            children: [
+              _ChipPill(label: 'QR: ${log.assetQrCode}'),
+              _ChipPill(label: 'User: ${log.updaterDisplayName}'),
+            ],
+          ),
+          SizedBox(height: r.dp(10)),
+          Container(
+            width: double.infinity,
+            padding: r.insetsAll(10),
+            decoration: BoxDecoration(
+              color: AppTheme.primaryBg.withOpacity(0.28),
+              borderRadius: BorderRadius.circular(r.dp(10)),
+              border: Border.all(color: AppTheme.borderDark),
+            ),
+            child: Text(
+              details,
+              maxLines: maxDetailLines,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: AppTheme.textSecondary,
+                fontSize: r.sp(12),
+                height: 1.3,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -3536,10 +4490,22 @@ class _UnitsTabState extends State<UnitsTab> {
         '🔍 [DEBUG] _showEditUnitDialog START - unit: ${unit.deviceName}');
     final deviceNameController = TextEditingController(text: unit.deviceName);
     final qrCodeController = TextEditingController(text: unit.qrCode);
+    final modelTypeController =
+        TextEditingController(text: unit.modelType ?? '');
+    final serialNumberController =
+        TextEditingController(text: unit.serialNumber ?? '');
     final locationController = TextEditingController(text: unit.location ?? '');
     final descriptionController =
         TextEditingController(text: unit.description ?? '');
     String selectedStatus = unit.status;
+    String selectedCondition = (unit.condition?.trim().isNotEmpty ?? false)
+        ? unit.condition!.trim().toLowerCase()
+        : 'good';
+    final notesController = TextEditingController(text: unit.notes ?? '');
+
+    Uint8List? selectedImageBytes;
+    String? selectedImageBase64;
+    String? selectedImageName;
 
     try {
       final saved = await showDialog<bool>(
@@ -3548,6 +4514,92 @@ class _UnitsTabState extends State<UnitsTab> {
           debugPrint('🔍 [DEBUG] Building EditUnit Dialog');
           return StatefulBuilder(
             builder: (ctx, setDialogState) {
+              Future<void> pickImage() async {
+                try {
+                  final picked = await ImagePicker()
+                      .pickImage(source: ImageSource.gallery);
+                  if (picked == null) return;
+
+                  final bytes = await picked.readAsBytes();
+                  if (bytes.isEmpty) return;
+
+                  setDialogState(() {
+                    selectedImageBytes = bytes;
+                    selectedImageBase64 = base64Encode(bytes);
+                    selectedImageName = picked.name;
+                  });
+                } catch (e) {
+                  if (!ctx.mounted) return;
+                  ScaffoldMessenger.of(ctx).showSnackBar(
+                    SnackBar(content: Text('Failed to pick image: $e')),
+                  );
+                }
+              }
+
+              Widget imagePickerSection() {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        OutlinedButton.icon(
+                          onPressed: pickImage,
+                          icon: const Icon(Icons.upload_file),
+                          label: const Text('Choose File'),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            (selectedImageName == null ||
+                                    selectedImageName!.trim().isEmpty)
+                                ? 'No file selected'
+                                : selectedImageName!,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
+                                  color: AppTheme.textTertiary,
+                                ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Container(
+                      height: 120,
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        color: AppTheme.darkBg.withOpacity(0.65),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: AppTheme.borderDark),
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(10),
+                        child: selectedImageBytes == null
+                            ? const Center(
+                                child: Text(
+                                  'No new image selected',
+                                  style: TextStyle(
+                                    color: AppTheme.textTertiary,
+                                  ),
+                                ),
+                              )
+                            : Image.memory(
+                                selectedImageBytes!,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) => const Center(
+                                  child: Text(
+                                    'Preview unavailable',
+                                    style:
+                                        TextStyle(color: AppTheme.textTertiary),
+                                  ),
+                                ),
+                              ),
+                      ),
+                    ),
+                  ],
+                );
+              }
+
               return AlertDialog(
                 backgroundColor: AppTheme.primaryBg,
                 title: const Text('Edit Unit'),
@@ -3566,6 +4618,7 @@ class _UnitsTabState extends State<UnitsTab> {
                         );
                         final qrField = TextField(
                           controller: qrCodeController,
+                          readOnly: true,
                           decoration: _compactInputDecoration(label: 'QR Code'),
                         );
                         final statusField = DropdownButtonFormField<String>(
@@ -3592,6 +4645,46 @@ class _UnitsTabState extends State<UnitsTab> {
                           },
                           decoration: _compactInputDecoration(label: 'Status'),
                         );
+                        final conditionField = DropdownButtonFormField<String>(
+                          value: selectedCondition,
+                          isExpanded: true,
+                          items: const [
+                            DropdownMenuItem(value: 'new', child: Text('New')),
+                            DropdownMenuItem(
+                                value: 'good', child: Text('Good')),
+                            DropdownMenuItem(
+                                value: 'fair', child: Text('Fair')),
+                            DropdownMenuItem(
+                                value: 'poor', child: Text('Poor')),
+                          ],
+                          onChanged: (value) {
+                            if (value != null) {
+                              setDialogState(() => selectedCondition = value);
+                            }
+                          },
+                          decoration:
+                              _compactInputDecoration(label: 'Condition'),
+                        );
+                        final modelTypeField = TextField(
+                          controller: modelTypeController,
+                          decoration: _compactInputDecoration(
+                            label: 'Model Type',
+                            hint: 'Optional',
+                          ),
+                        );
+                        final serialNumberField = TextField(
+                          controller: serialNumberController,
+                          keyboardType: TextInputType.number,
+                          inputFormatters: [
+                            FilteringTextInputFormatter.digitsOnly,
+                            LengthLimitingTextInputFormatter(5),
+                          ],
+                          maxLength: 5,
+                          decoration: _compactInputDecoration(
+                            label: 'Serial Number',
+                            hint: 'Optional',
+                          ).copyWith(counterText: ''),
+                        );
                         final locationField = TextField(
                           controller: locationController,
                           decoration: _compactInputDecoration(
@@ -3604,6 +4697,14 @@ class _UnitsTabState extends State<UnitsTab> {
                           maxLines: 2,
                           decoration: _compactInputDecoration(
                             label: 'Description',
+                            hint: 'Optional',
+                          ),
+                        );
+                        final notesField = TextField(
+                          controller: notesController,
+                          maxLines: 2,
+                          decoration: _compactInputDecoration(
+                            label: 'Notes',
                             hint: 'Optional',
                           ),
                         );
@@ -3620,9 +4721,19 @@ class _UnitsTabState extends State<UnitsTab> {
                               vGap(),
                               statusField,
                               vGap(),
+                              conditionField,
+                              vGap(),
+                              modelTypeField,
+                              vGap(),
+                              serialNumberField,
+                              vGap(),
                               locationField,
                               vGap(),
                               descriptionField,
+                              vGap(),
+                              notesField,
+                              vGap(),
+                              imagePickerSection(),
                             ],
                           );
                         }
@@ -3642,11 +4753,25 @@ class _UnitsTabState extends State<UnitsTab> {
                               children: [
                                 Expanded(child: statusField),
                                 const SizedBox(width: 12),
-                                Expanded(child: locationField),
+                                Expanded(child: conditionField),
                               ],
                             ),
                             vGap(),
+                            Row(
+                              children: [
+                                Expanded(child: modelTypeField),
+                                const SizedBox(width: 12),
+                                Expanded(child: serialNumberField),
+                              ],
+                            ),
+                            vGap(),
+                            locationField,
+                            vGap(),
                             descriptionField,
+                            vGap(),
+                            notesField,
+                            vGap(),
+                            imagePickerSection(),
                           ],
                         );
                       },
@@ -3680,10 +4805,18 @@ class _UnitsTabState extends State<UnitsTab> {
         return;
       }
 
-      if (deviceNameController.text.trim().isEmpty ||
-          qrCodeController.text.trim().isEmpty) {
+      if (deviceNameController.text.trim().isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Device Name and QR Code are required')),
+          const SnackBar(content: Text('Device Name is required')),
+        );
+        return;
+      }
+
+      final serial = serialNumberController.text.trim();
+      if (serial.isNotEmpty && !_isValidSerialNumber(serial)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text('Serial Number must be exactly 5 digits')),
         );
         return;
       }
@@ -3694,10 +4827,14 @@ class _UnitsTabState extends State<UnitsTab> {
           unit.id,
           {
             'deviceName': deviceNameController.text.trim(),
-            'qrCode': qrCodeController.text.trim(),
             'status': selectedStatus,
+            'condition': selectedCondition,
+            'modelType': modelTypeController.text.trim(),
+            'serialNumber': serialNumberController.text.trim(),
             'location': locationController.text.trim(),
             'description': descriptionController.text.trim(),
+            'notes': notesController.text.trim(),
+            if (selectedImageBase64 != null) 'imageData': selectedImageBase64,
           },
         );
 
@@ -3729,8 +4866,11 @@ class _UnitsTabState extends State<UnitsTab> {
     } finally {
       deviceNameController.dispose();
       qrCodeController.dispose();
+      modelTypeController.dispose();
+      serialNumberController.dispose();
       locationController.dispose();
       descriptionController.dispose();
+      notesController.dispose();
       debugPrint('🔍 [DEBUG] _showEditUnitDialog END');
     }
   }
@@ -3848,168 +4988,444 @@ class _UnitsTabState extends State<UnitsTab> {
   Future<void> _showAddUnitDialog(BuildContext context) async {
     final deviceNameController = TextEditingController();
     final qrCodeController = TextEditingController();
+    final modelTypeController = TextEditingController();
+    final serialNumberController = TextEditingController();
     final locationController = TextEditingController();
     final descriptionController = TextEditingController();
+    final notesController = TextEditingController();
     String selectedStatus = 'active';
+    String selectedCondition = 'good';
 
-    final saved = await showDialog<bool>(
-      context: context,
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (ctx, setDialogState) {
-            return AlertDialog(
-              backgroundColor: AppTheme.primaryBg,
-              title: const Text('Add New System Unit'),
-              content: SingleChildScrollView(
+    Uint8List? selectedImageBytes;
+    String? selectedImageBase64;
+    String? selectedImageName;
+
+    try {
+      final saved = await showDialog<bool>(
+        context: context,
+        builder: (ctx) {
+          return StatefulBuilder(
+            builder: (ctx, setDialogState) {
+              final maxDialogHeight = MediaQuery.sizeOf(ctx).height * 0.85;
+
+              Future<void> pickImage() async {
+                try {
+                  final picked = await ImagePicker()
+                      .pickImage(source: ImageSource.gallery);
+                  if (picked == null) return;
+
+                  final bytes = await picked.readAsBytes();
+                  if (bytes.isEmpty) return;
+
+                  setDialogState(() {
+                    selectedImageBytes = bytes;
+                    selectedImageBase64 = base64Encode(bytes);
+                    selectedImageName = picked.name;
+                  });
+                } catch (e) {
+                  if (!ctx.mounted) return;
+                  ScaffoldMessenger.of(ctx).showSnackBar(
+                    SnackBar(content: Text('Failed to pick image: $e')),
+                  );
+                }
+              }
+
+              Widget imagePickerSection() {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        OutlinedButton.icon(
+                          onPressed: pickImage,
+                          icon: const Icon(Icons.upload_file),
+                          label: const Text('Choose File'),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            (selectedImageName == null ||
+                                    selectedImageName!.trim().isEmpty)
+                                ? 'No file selected'
+                                : selectedImageName!,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
+                                  color: AppTheme.textTertiary,
+                                ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Container(
+                      height: 120,
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        color: AppTheme.darkBg.withOpacity(0.65),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: AppTheme.borderDark),
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(10),
+                        child: selectedImageBytes == null
+                            ? const Center(
+                                child: Text(
+                                  'No image selected',
+                                  style: TextStyle(
+                                    color: AppTheme.textTertiary,
+                                  ),
+                                ),
+                              )
+                            : Image.memory(
+                                selectedImageBytes!,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) => const Center(
+                                  child: Text(
+                                    'Preview unavailable',
+                                    style:
+                                        TextStyle(color: AppTheme.textTertiary),
+                                  ),
+                                ),
+                              ),
+                      ),
+                    ),
+                  ],
+                );
+              }
+
+              final serial = serialNumberController.text.trim();
+              final serialOk = serial.isEmpty || _isValidSerialNumber(serial);
+              final canSubmit = deviceNameController.text.trim().isNotEmpty &&
+                  qrCodeController.text.trim().isNotEmpty &&
+                  serialOk;
+
+              return Dialog(
+                backgroundColor: AppTheme.primaryBg,
+                insetPadding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 24,
+                ),
                 child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 560),
-                  child: LayoutBuilder(
-                    builder: (context, constraints) {
-                      final availableWidth = constraints.maxWidth.isFinite &&
-                              constraints.maxWidth > 0
-                          ? constraints.maxWidth
-                          : 560.0;
-                      final twoCol = availableWidth >= 460;
+                  constraints: BoxConstraints(
+                    maxWidth: 560,
+                    maxHeight: maxDialogHeight,
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Text(
+                          'Add New System Unit',
+                          style: Theme.of(ctx).textTheme.titleLarge,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Enter the details for the new system unit',
+                          style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
+                                color: AppTheme.textTertiary,
+                              ),
+                        ),
+                        const SizedBox(height: 12),
+                        Expanded(
+                          child: SingleChildScrollView(
+                            child: LayoutBuilder(
+                              builder: (context, constraints) {
+                                final availableWidth =
+                                    constraints.maxWidth.isFinite &&
+                                            constraints.maxWidth > 0
+                                        ? constraints.maxWidth
+                                        : 560.0;
+                                final twoCol = availableWidth >= 460;
 
-                      final nameField = TextField(
-                        controller: deviceNameController,
-                        decoration:
-                            _compactInputDecoration(label: 'Device Name'),
-                      );
-                      final qrField = TextField(
-                        controller: qrCodeController,
-                        decoration: _compactInputDecoration(label: 'QR Code'),
-                      );
-                      final statusField = DropdownButtonFormField<String>(
-                        value: selectedStatus,
-                        isExpanded: true,
-                        items: const [
-                          DropdownMenuItem(
-                              value: 'active', child: Text('Active')),
-                          DropdownMenuItem(
-                              value: 'inactive', child: Text('Inactive')),
-                          DropdownMenuItem(
-                            value: 'maintenance',
-                            child: Text('Maintenance'),
+                                final nameField = TextField(
+                                  controller: deviceNameController,
+                                  onChanged: (_) => setDialogState(() {}),
+                                  decoration: _compactInputDecoration(
+                                    label: 'Device Name',
+                                    context: ctx,
+                                    requiredField: true,
+                                  ),
+                                );
+                                final qrField = TextField(
+                                  controller: qrCodeController,
+                                  onChanged: (_) => setDialogState(() {}),
+                                  decoration: _compactInputDecoration(
+                                    label: 'QR Code',
+                                    context: ctx,
+                                    requiredField: true,
+                                  ),
+                                );
+                                final statusField =
+                                    DropdownButtonFormField<String>(
+                                  value: selectedStatus,
+                                  isExpanded: true,
+                                  items: const [
+                                    DropdownMenuItem(
+                                      value: 'active',
+                                      child: Text('Active'),
+                                    ),
+                                    DropdownMenuItem(
+                                      value: 'inactive',
+                                      child: Text('Inactive'),
+                                    ),
+                                    DropdownMenuItem(
+                                      value: 'maintenance',
+                                      child: Text('Maintenance'),
+                                    ),
+                                    DropdownMenuItem(
+                                      value: 'broken',
+                                      child: Text('Broken'),
+                                    ),
+                                    DropdownMenuItem(
+                                      value: 'repair',
+                                      child: Text('Repair'),
+                                    ),
+                                  ],
+                                  onChanged: (value) {
+                                    if (value != null) {
+                                      setDialogState(
+                                          () => selectedStatus = value);
+                                    }
+                                  },
+                                  decoration: _compactInputDecoration(
+                                    label: 'Status',
+                                    context: ctx,
+                                    requiredField: true,
+                                  ),
+                                );
+                                final conditionField =
+                                    DropdownButtonFormField<String>(
+                                  value: selectedCondition,
+                                  isExpanded: true,
+                                  items: const [
+                                    DropdownMenuItem(
+                                        value: 'new', child: Text('New')),
+                                    DropdownMenuItem(
+                                        value: 'good', child: Text('Good')),
+                                    DropdownMenuItem(
+                                        value: 'fair', child: Text('Fair')),
+                                    DropdownMenuItem(
+                                        value: 'poor', child: Text('Poor')),
+                                  ],
+                                  onChanged: (value) {
+                                    if (value != null) {
+                                          setDialogState(
+                                          () => selectedCondition = value);
+                                    }
+                                  },
+                                  decoration: _compactInputDecoration(
+                                    label: 'Condition',
+                                    context: ctx,
+                                    requiredField: true,
+                                  ),
+                                );
+                                final modelTypeField = TextField(
+                                  controller: modelTypeController,
+                                  decoration: _compactInputDecoration(
+                                    label: 'Model Type',
+                                    hint: 'Optional',
+                                  ),
+                                );
+                                final serialNumberField = TextField(
+                                  controller: serialNumberController,
+                                  keyboardType: TextInputType.number,
+                                  inputFormatters: [
+                                    FilteringTextInputFormatter.digitsOnly,
+                                    LengthLimitingTextInputFormatter(5),
+                                  ],
+                                  maxLength: 5,
+                                  onChanged: (_) => setDialogState(() {}),
+                                  decoration: _compactInputDecoration(
+                                    label: 'Serial Number',
+                                    hint: 'Optional',
+                                  ).copyWith(counterText: ''),
+                                );
+                                final locationField = TextField(
+                                  controller: locationController,
+                                  decoration: _compactInputDecoration(
+                                    label: 'Location',
+                                    hint: 'Optional',
+                                  ),
+                                );
+                                final notesField = TextField(
+                                  controller: notesController,
+                                  maxLines: 2,
+                                  decoration: _compactInputDecoration(
+                                    label: 'Notes',
+                                    hint: 'Optional',
+                                  ),
+                                );
+                                final descriptionField = TextField(
+                                  controller: descriptionController,
+                                  maxLines: 2,
+                                  decoration: _compactInputDecoration(
+                                    label: 'Description',
+                                    hint: 'Optional',
+                                  ),
+                                );
+
+                                Widget vGap([double h = 10]) => SizedBox(
+                                      height: h,
+                                    );
+
+                                if (!twoCol) {
+                                  return Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      nameField,
+                                      vGap(),
+                                      qrField,
+                                      vGap(),
+                                      statusField,
+                                      vGap(),
+                                      conditionField,
+                                      vGap(),
+                                      modelTypeField,
+                                      vGap(),
+                                      serialNumberField,
+                                      vGap(),
+                                      locationField,
+                                      vGap(),
+                                      notesField,
+                                      vGap(),
+                                      descriptionField,
+                                      vGap(),
+                                      imagePickerSection(),
+                                    ],
+                                  );
+                                }
+
+                                return Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Expanded(child: nameField),
+                                        const SizedBox(width: 12),
+                                        Expanded(child: serialNumberField),
+                                      ],
+                                    ),
+                                    vGap(),
+                                    Row(
+                                      children: [
+                                        Expanded(child: qrField),
+                                        const SizedBox(width: 12),
+                                        Expanded(child: conditionField),
+                                      ],
+                                    ),
+                                    vGap(),
+                                    Row(
+                                      children: [
+                                        Expanded(child: modelTypeField),
+                                        const SizedBox(width: 12),
+                                        Expanded(child: statusField),
+                                      ],
+                                    ),
+                                    vGap(),
+                                    Row(
+                                      children: [
+                                        Expanded(child: locationField),
+                                        const SizedBox(width: 12),
+                                        Expanded(child: notesField),
+                                      ],
+                                    ),
+                                    vGap(),
+                                    descriptionField,
+                                    vGap(),
+                                    imagePickerSection(),
+                                  ],
+                                );
+                              },
+                            ),
                           ),
-                        ],
-                        onChanged: (value) {
-                          if (value != null) {
-                            setDialogState(() => selectedStatus = value);
-                          }
-                        },
-                        decoration: _compactInputDecoration(label: 'Status'),
-                      );
-                      final locationField = TextField(
-                        controller: locationController,
-                        decoration: _compactInputDecoration(
-                          label: 'Location',
-                          hint: 'Optional',
                         ),
-                      );
-                      final descriptionField = TextField(
-                        controller: descriptionController,
-                        maxLines: 2,
-                        decoration: _compactInputDecoration(
-                          label: 'Description',
-                          hint: 'Optional',
-                        ),
-                      );
-
-                      Widget vGap([double h = 10]) => SizedBox(height: h);
-
-                      if (!twoCol) {
-                        return Column(
-                          mainAxisSize: MainAxisSize.min,
+                        const SizedBox(height: 12),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
                           children: [
-                            nameField,
-                            vGap(),
-                            qrField,
-                            vGap(),
-                            statusField,
-                            vGap(),
-                            locationField,
-                            vGap(),
-                            descriptionField,
+                            TextButton(
+                              onPressed: () => Navigator.pop(ctx, false),
+                              child: const Text('Cancel'),
+                            ),
+                            const SizedBox(width: 8),
+                            ElevatedButton.icon(
+                              onPressed: canSubmit
+                                  ? () => Navigator.pop(ctx, true)
+                                  : null,
+                              icon: const Icon(Icons.add),
+                              label: const Text('Add Unit'),
+                            ),
                           ],
-                        );
-                      }
-
-                      return Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Row(
-                            children: [
-                              Expanded(child: nameField),
-                              const SizedBox(width: 12),
-                              Expanded(child: qrField),
-                            ],
-                          ),
-                          vGap(),
-                          Row(
-                            children: [
-                              Expanded(child: statusField),
-                              const SizedBox(width: 12),
-                              Expanded(child: locationField),
-                            ],
-                          ),
-                          vGap(),
-                          descriptionField,
-                        ],
-                      );
-                    },
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx, false),
-                  child: const Text('Cancel'),
-                ),
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx, true),
-                  child: const Text('Add Unit'),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-
-    if (saved != true) return;
-
-    if (deviceNameController.text.trim().isEmpty ||
-        qrCodeController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Device Name and QR Code are required')),
+              );
+            },
+          );
+        },
       );
-      return;
+
+      if (saved != true) return;
+
+      if (deviceNameController.text.trim().isEmpty ||
+          qrCodeController.text.trim().isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Device Name and QR Code are required')),
+        );
+        return;
+      }
+
+      final serial = serialNumberController.text.trim();
+      if (serial.isNotEmpty && !_isValidSerialNumber(serial)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text('Serial Number must be exactly 5 digits')),
+        );
+        return;
+      }
+
+      final provider = context.read<UnitProvider>();
+      final ok = await provider.createUnit(
+        deviceNameController.text.trim(),
+        qrCodeController.text.trim(),
+        selectedStatus,
+        condition: selectedCondition,
+        modelType: modelTypeController.text.trim(),
+        serialNumber: serialNumberController.text.trim(),
+        location: locationController.text.trim(),
+        description: descriptionController.text.trim(),
+        notes: notesController.text.trim(),
+        imageData: selectedImageBase64,
+      );
+
+      if (!context.mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+              ok ? 'Unit added successfully' : (provider.error ?? 'Failed')),
+        ),
+      );
+    } finally {
+      deviceNameController.dispose();
+      qrCodeController.dispose();
+      modelTypeController.dispose();
+      serialNumberController.dispose();
+      locationController.dispose();
+      descriptionController.dispose();
+      notesController.dispose();
     }
-
-    final provider = context.read<UnitProvider>();
-    final ok = await provider.createUnit(
-      deviceNameController.text.trim(),
-      qrCodeController.text.trim(),
-      selectedStatus,
-      location: locationController.text.trim(),
-      description: descriptionController.text.trim(),
-    );
-
-    if (!context.mounted) return;
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content:
-            Text(ok ? 'Unit added successfully' : (provider.error ?? 'Failed')),
-      ),
-    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Consumer<UnitProvider>(
       builder: (context, provider, _) {
+        final r = Responsive.of(context);
         final filtered = provider.units.where((u) {
           final statusOk = _statusFilter == 'all' ||
               u.status.toLowerCase() == _statusFilter.toLowerCase();
@@ -4025,7 +5441,7 @@ class _UnitsTabState extends State<UnitsTab> {
         return Column(
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+              padding: EdgeInsets.fromLTRB(r.dp(16), r.dp(12), r.dp(16), 0),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -4040,20 +5456,20 @@ class _UnitsTabState extends State<UnitsTab> {
                         onPressed: provider.fetchUnits,
                         icon: const Icon(Icons.refresh),
                       ),
-                      const SizedBox(width: 8),
+                      SizedBox(width: r.dp(8)),
                       OutlinedButton.icon(
                         onPressed: () => _exportUnitsCsv(context, filtered),
-                        icon: const Icon(Icons.download, size: 14),
-                        label: const Text('Export CSV',
-                            style: TextStyle(fontSize: 11)),
+                        icon: Icon(Icons.download, size: r.icon(14)),
+                        label: Text('Export CSV',
+                            style: TextStyle(fontSize: r.sp(11))),
                         style: OutlinedButton.styleFrom(
-                          minimumSize: const Size(0, 32),
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 8),
+                          minimumSize: Size(0, r.dp(32)),
+                          padding:
+                              r.insetsSymmetric(horizontal: 10, vertical: 8),
                           visualDensity: VisualDensity.compact,
                         ),
                       ),
-                      const SizedBox(width: 8),
+                      SizedBox(width: r.dp(8)),
                       Consumer<AuthProvider>(
                         builder: (context, auth, _) {
                           final canAddUnit =
@@ -4062,12 +5478,12 @@ class _UnitsTabState extends State<UnitsTab> {
                             onPressed: canAddUnit
                                 ? () => _showAddUnitDialog(context)
                                 : null,
-                            icon: const Icon(Icons.add, size: 13),
-                            label: const Text('Add Unit',
-                                style: TextStyle(fontSize: 11)),
+                            icon: Icon(Icons.add, size: r.icon(13)),
+                            label: Text('Add Unit',
+                                style: TextStyle(fontSize: r.sp(11))),
                             style: ElevatedButton.styleFrom(
-                              minimumSize: const Size(0, 32),
-                              padding: const EdgeInsets.symmetric(
+                              minimumSize: Size(0, r.dp(32)),
+                              padding: r.insetsSymmetric(
                                   horizontal: 10, vertical: 8),
                               visualDensity: VisualDensity.compact,
                             ),
@@ -4080,7 +5496,7 @@ class _UnitsTabState extends State<UnitsTab> {
               ),
             ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+              padding: EdgeInsets.fromLTRB(r.dp(16), r.dp(10), r.dp(16), 0),
               child: LayoutBuilder(
                 builder: (context, constraints) {
                   final twoCol = constraints.maxWidth >= 700;
@@ -4088,8 +5504,8 @@ class _UnitsTabState extends State<UnitsTab> {
                       ? (constraints.maxWidth - 12) / 2
                       : constraints.maxWidth;
                   return Wrap(
-                    spacing: 12,
-                    runSpacing: 10,
+                    spacing: r.dp(12),
+                    runSpacing: r.dp(10),
                     children: [
                       SizedBox(
                         width: fieldWidth,
@@ -4211,10 +5627,10 @@ class _UnitsTabState extends State<UnitsTab> {
                                                     const SizedBox(height: 2),
                                                     Text(
                                                       unit.qrCode,
-                                                      style: const TextStyle(
+                                                      style: TextStyle(
                                                         color: AppTheme
                                                             .textTertiary,
-                                                        fontSize: 11,
+                                                        fontSize: r.sp(11),
                                                       ),
                                                     ),
                                                   ],
@@ -4354,8 +5770,8 @@ class _UnitsTabState extends State<UnitsTab> {
                                   dataRowMaxHeight: 58,
                                   dividerThickness: 0.8,
                                   columns: const [
+                                    DataColumn(label: Text('Device ID')),
                                     DataColumn(label: Text('Device Name')),
-                                    DataColumn(label: Text('QR Code')),
                                     DataColumn(label: Text('Status')),
                                     DataColumn(label: Text('Location')),
                                     DataColumn(label: Text('Description')),
@@ -4369,8 +5785,21 @@ class _UnitsTabState extends State<UnitsTab> {
                                         _unitToAssetMap(unit),
                                       ),
                                       cells: [
+                                        DataCell(
+                                          SizedBox(
+                                            width: 220,
+                                            child: Tooltip(
+                                              message: unit.id,
+                                              child: Text(
+                                                _infocomDeviceIdFromUuid(
+                                                    unit.id),
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
                                         DataCell(Text(unit.deviceName)),
-                                        DataCell(Text(unit.qrCode)),
                                         DataCell(
                                             _StatusBadge(status: unit.status)),
                                         DataCell(Text(unit.location ?? 'N/A')),
@@ -4457,175 +5886,278 @@ class _UnitsTabState extends State<UnitsTab> {
   }
 }
 
-class ActivityLogsTab extends StatelessWidget {
+class ActivityLogsTab extends StatefulWidget {
   const ActivityLogsTab({Key? key}) : super(key: key);
 
   @override
+  State<ActivityLogsTab> createState() => _ActivityLogsTabState();
+}
+
+class _ActivityLogsTabState extends State<ActivityLogsTab> {
+  String _query = '';
+  DateTime? _startDateTime;
+  DateTime? _endDateTime;
+  final DateFormat _dateTimeFmt = DateFormat('yyyy-MM-dd HH:mm');
+
+  String _formatDateTime(DateTime? dt) {
+    if (dt == null) return '—';
+    return _dateTimeFmt.format(dt);
+  }
+
+  Future<DateTime?> _pickDateTime(
+      BuildContext context, DateTime? initial) async {
+    final now = DateTime.now();
+    final initialDate = initial ?? now;
+
+    final pickedDate = await showDatePicker(
+      context: context,
+      initialDate: initialDate,
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2100),
+    );
+    if (pickedDate == null) return null;
+
+    final pickedTime = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(initialDate),
+    );
+    if (pickedTime == null) return null;
+
+    return DateTime(
+      pickedDate.year,
+      pickedDate.month,
+      pickedDate.day,
+      pickedTime.hour,
+      pickedTime.minute,
+    );
+  }
+
+  Widget _dateTimeFilterField(
+    BuildContext context, {
+    required Responsive r,
+    required String label,
+    required DateTime? value,
+    required VoidCallback onPick,
+    required VoidCallback onClear,
+  }) {
+    return InkWell(
+      onTap: onPick,
+      borderRadius: BorderRadius.circular(10),
+      child: InputDecorator(
+        decoration: InputDecoration(
+          labelText: label,
+          prefixIcon: const Icon(Icons.schedule),
+          suffixIcon: value == null
+              ? const Icon(Icons.arrow_drop_down)
+              : IconButton(
+                  tooltip: 'Clear',
+                  onPressed: onClear,
+                  icon: const Icon(Icons.close),
+                ),
+        ),
+        child: Text(
+          value == null ? 'Select' : _formatDateTime(value),
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: value == null
+                    ? AppTheme.textTertiary
+                    : AppTheme.textPrimary,
+                fontSize: r.sp(12),
+              ),
+        ),
+      ),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final r = Responsive.of(context);
+
     return Consumer<ActivityLogProvider>(
       builder: (context, provider, _) {
         if (provider.isLoading) {
           return const Center(child: CircularProgressIndicator());
         }
-        if (provider.logs.isEmpty) {
-          return Center(
-            child: Text(
-              'No activity logs',
-              style: Theme.of(context).textTheme.bodyMedium,
-            ),
-          );
-        }
-        return Padding(
-          padding: const EdgeInsets.all(16),
-          child: Container(
-            decoration: _balancedSurfaceDecoration(elevated: true),
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                if (constraints.maxWidth < 720) {
-                  return ListView.separated(
-                    padding: const EdgeInsets.all(14),
-                    itemCount: provider.logs.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 10),
-                    itemBuilder: (context, index) {
-                      final log = provider.logs[index];
-                      return Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: _balancedInsetDecoration(),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Container(
-                                  width: 36,
-                                  height: 36,
-                                  decoration: BoxDecoration(
-                                    color:
-                                        AppTheme.lavender600.withOpacity(0.16),
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                  child: const Icon(
-                                    Icons.history,
-                                    size: 18,
-                                    color: AppTheme.lavender300,
-                                  ),
-                                ),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        log.timestamp
-                                            .toString()
-                                            .split('.')
-                                            .first,
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .bodySmall
-                                            ?.copyWith(
-                                              fontWeight: FontWeight.w800,
-                                              color: AppTheme.textPrimary,
-                                            ),
-                                      ),
-                                      const SizedBox(height: 2),
-                                      Text(
-                                        log.displayAction,
-                                        style: const TextStyle(
-                                          color: AppTheme.textSecondary,
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 10),
-                            Wrap(
-                              spacing: 8,
-                              runSpacing: 8,
-                              children: [
-                                _ChipPill(label: 'QR: ${log.assetQrCode}'),
-                                _ChipPill(
-                                    label: 'User: ${log.updaterDisplayName}'),
-                              ],
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              log.displayDetails,
-                              maxLines: 3,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: AppTheme.textSecondary,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                  );
-                }
 
-                return SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: DataTable(
-                    headingRowColor: WidgetStateProperty.all(
-                      AppTheme.primaryBg.withOpacity(0.55),
-                    ),
-                    dataRowMinHeight: 42,
-                    dataRowMaxHeight: 56,
-                    columnSpacing: 18,
-                    horizontalMargin: 14,
-                    columns: const [
-                      DataColumn(label: Text('Timestamp')),
-                      DataColumn(label: Text('Action')),
-                      DataColumn(label: Text('QR Code')),
-                      DataColumn(label: Text('Details')),
+        final q = _query.trim().toLowerCase();
+        final filteredLogs = provider.logs.where((log) {
+          final matchesQuery = q.isEmpty ||
+              log.displayAction.toLowerCase().contains(q) ||
+              log.assetQrCode.toLowerCase().contains(q) ||
+              log.displayDetails.toLowerCase().contains(q) ||
+              log.updaterDisplayName.toLowerCase().contains(q);
+
+          final ts = log.timestamp;
+          final matchesRange =
+              (_startDateTime == null || !ts.isBefore(_startDateTime!)) &&
+                  (_endDateTime == null || !ts.isAfter(_endDateTime!));
+
+          return matchesQuery && matchesRange;
+        }).toList();
+
+        return Padding(
+          padding: r.insetsAll(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final isWide = constraints.maxWidth >= 760;
+                  return Wrap(
+                    spacing: r.dp(12),
+                    runSpacing: r.dp(10),
+                    children: [
+                      SizedBox(
+                        width: isWide ? r.dp(320) : double.infinity,
+                        child: TextField(
+                          onChanged: (v) => setState(() => _query = v),
+                          decoration: const InputDecoration(
+                            labelText: 'Search',
+                            prefixIcon: Icon(Icons.search),
+                          ),
+                        ),
+                      ),
+                      SizedBox(
+                        width: isWide ? r.dp(220) : double.infinity,
+                        child: _dateTimeFilterField(
+                          context,
+                          r: r,
+                          label: 'Start',
+                          value: _startDateTime,
+                          onPick: () async {
+                            final picked =
+                                await _pickDateTime(context, _startDateTime);
+                            if (picked == null) return;
+                            if (!mounted) return;
+                            setState(() => _startDateTime = picked);
+                          },
+                          onClear: () => setState(() => _startDateTime = null),
+                        ),
+                      ),
+                      SizedBox(
+                        width: isWide ? r.dp(220) : double.infinity,
+                        child: _dateTimeFilterField(
+                          context,
+                          r: r,
+                          label: 'End',
+                          value: _endDateTime,
+                          onPick: () async {
+                            final picked =
+                                await _pickDateTime(context, _endDateTime);
+                            if (picked == null) return;
+                            if (!mounted) return;
+                            setState(() => _endDateTime = picked);
+                          },
+                          onClear: () => setState(() => _endDateTime = null),
+                        ),
+                      ),
                     ],
-                    rows: provider.logs.map((log) {
-                      return DataRow(
-                        cells: [
-                          DataCell(
-                            Text(
-                              log.timestamp.toString().split('.').first,
-                              style: const TextStyle(fontSize: 11),
-                            ),
+                  );
+                },
+              ),
+              SizedBox(height: r.dp(12)),
+              Expanded(
+                child: Container(
+                  decoration: _balancedSurfaceDecoration(elevated: true),
+                  child: provider.logs.isEmpty
+                      ? Center(
+                          child: Text(
+                            'No activity logs',
+                            style: Theme.of(context).textTheme.bodyMedium,
                           ),
-                          DataCell(
-                            Text(
-                              log.displayAction,
-                              style: const TextStyle(fontSize: 11),
-                            ),
-                          ),
-                          DataCell(
-                            Text(
-                              log.assetQrCode,
-                              style: const TextStyle(fontSize: 11),
-                            ),
-                          ),
-                          DataCell(
-                            SizedBox(
-                              width: 220,
+                        )
+                      : filteredLogs.isEmpty
+                          ? Center(
                               child: Text(
-                                log.displayDetails,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(fontSize: 11),
+                                'No logs found',
+                                style: Theme.of(context).textTheme.bodyMedium,
                               ),
+                            )
+                          : LayoutBuilder(
+                              builder: (context, constraints) {
+                                if (constraints.maxWidth < 720) {
+                                  return ListView.separated(
+                                    padding: r.insetsAll(14),
+                                    itemCount: filteredLogs.length,
+                                    separatorBuilder: (_, __) =>
+                                        SizedBox(height: r.dp(10)),
+                                    itemBuilder: (context, index) {
+                                      final log = filteredLogs[index];
+                                      return _ActivityLogCard(
+                                        log: log,
+                                        maxDetailLines: 10,
+                                      );
+                                    },
+                                  );
+                                }
+
+                                return SingleChildScrollView(
+                                  child: SingleChildScrollView(
+                                    scrollDirection: Axis.horizontal,
+                                    child: DataTable(
+                                      headingRowColor: WidgetStateProperty.all(
+                                        AppTheme.primaryBg.withOpacity(0.55),
+                                      ),
+                                      dataRowMinHeight: r.dp(42),
+                                      dataRowMaxHeight: r.dp(56),
+                                      columnSpacing: r.dp(18),
+                                      horizontalMargin: r.dp(14),
+                                      columns: const [
+                                        DataColumn(label: Text('Timestamp')),
+                                        DataColumn(label: Text('Action')),
+                                        DataColumn(label: Text('QR Code')),
+                                        DataColumn(label: Text('Details')),
+                                      ],
+                                      rows: filteredLogs.map((log) {
+                                        return DataRow(
+                                          cells: [
+                                            DataCell(
+                                              Text(
+                                                log.timestamp
+                                                    .toString()
+                                                    .split('.')
+                                                    .first,
+                                                style: TextStyle(
+                                                    fontSize: r.sp(11)),
+                                              ),
+                                            ),
+                                            DataCell(
+                                              Text(
+                                                log.displayAction,
+                                                style: TextStyle(
+                                                    fontSize: r.sp(11)),
+                                              ),
+                                            ),
+                                            DataCell(
+                                              Text(
+                                                log.assetQrCode,
+                                                style: TextStyle(
+                                                    fontSize: r.sp(11)),
+                                              ),
+                                            ),
+                                            DataCell(
+                                              SizedBox(
+                                                width: r.dp(220),
+                                                child: Text(
+                                                  log.displayDetails,
+                                                  maxLines: 1,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                  style: TextStyle(
+                                                      fontSize: r.sp(11)),
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        );
+                                      }).toList(),
+                                    ),
+                                  ),
+                                );
+                              },
                             ),
-                          ),
-                        ],
-                      );
-                    }).toList(),
-                  ),
-                );
-              },
-            ),
+                ),
+              ),
+            ],
           ),
         );
       },

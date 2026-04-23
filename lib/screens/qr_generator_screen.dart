@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import '../services/qr_display_helper.dart';
+import '../utils/responsive.dart';
 
 class QRGeneratorScreen extends StatefulWidget {
   final bool embedded;
@@ -39,8 +40,9 @@ class _QRGeneratorScreenState extends State<QRGeneratorScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final r = Responsive.of(context);
     final content = SingleChildScrollView(
-      padding: const EdgeInsets.all(12),
+      padding: r.insetsAll(12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -50,7 +52,7 @@ class _QRGeneratorScreenState extends State<QRGeneratorScreen> {
                   color: AppTheme.textPrimary,
                 ),
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: r.dp(16)),
           // Asset Type Selection
           Text(
             'Asset Type',
@@ -58,9 +60,9 @@ class _QRGeneratorScreenState extends State<QRGeneratorScreen> {
                   color: AppTheme.textPrimary,
                 ),
           ),
-          const SizedBox(height: 6),
+          SizedBox(height: r.dp(6)),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10),
+            padding: r.insetsSymmetric(horizontal: 10),
             decoration: BoxDecoration(
               border: Border.all(color: AppTheme.borderDark),
               borderRadius: BorderRadius.circular(8),
@@ -91,11 +93,11 @@ class _QRGeneratorScreenState extends State<QRGeneratorScreen> {
               underline: const SizedBox.shrink(),
               dropdownColor: AppTheme.darkBg,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    fontSize: 12,
+                    fontSize: r.sp(12),
                   ),
             ),
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: r.dp(12)),
           // Asset ID Input
           Text(
             'Asset ID',
@@ -103,13 +105,13 @@ class _QRGeneratorScreenState extends State<QRGeneratorScreen> {
                   color: AppTheme.textPrimary,
                 ),
           ),
-          const SizedBox(height: 6),
+          SizedBox(height: r.dp(6)),
           TextField(
             controller: _assetIdController,
             decoration: InputDecoration(
               isDense: true,
               contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  r.insetsSymmetric(horizontal: 12, vertical: 10),
               hintText: 'Enter asset ID (e.g., HQ-001)',
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(8),
@@ -128,30 +130,30 @@ class _QRGeneratorScreenState extends State<QRGeneratorScreen> {
               ),
             ),
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: r.dp(12)),
           // Generate Button
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
               onPressed: _generateAndDisplayQR,
-              icon: const Icon(Icons.qr_code_2, size: 16),
-              label: const Text(
+              icon: Icon(Icons.qr_code_2, size: r.icon(16)),
+              label: Text(
                 'Generate QR Code',
-                style: TextStyle(fontSize: 11),
+                style: TextStyle(fontSize: r.sp(11)),
               ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppTheme.lavender600,
                 foregroundColor: Colors.white,
-                minimumSize: const Size(0, 34),
+                minimumSize: Size(0, r.dp(34)),
                 padding:
-                    const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                    r.insetsSymmetric(vertical: 8, horizontal: 12),
               ),
             ),
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: r.dp(16)),
           // Info Box
           Container(
-            padding: const EdgeInsets.all(12),
+            padding: r.insetsAll(12),
             decoration: BoxDecoration(
               border: Border.all(color: AppTheme.borderDark),
               borderRadius: BorderRadius.circular(8),
@@ -165,16 +167,16 @@ class _QRGeneratorScreenState extends State<QRGeneratorScreen> {
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         color: AppTheme.textPrimary,
                         fontWeight: FontWeight.bold,
-                        fontSize: 12,
+                        fontSize: r.sp(12),
                       ),
                 ),
-                const SizedBox(height: 6),
+                SizedBox(height: r.dp(6)),
                 Text(
                   'QR codes are used to quickly identify and track assets in the system. '
                   'Generate codes for new monitors or system units using this tool.',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: AppTheme.textTertiary,
-                        fontSize: 11,
+                        fontSize: r.sp(11),
                       ),
                 ),
               ],

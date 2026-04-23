@@ -1,6 +1,9 @@
+import 'dart:math' as math;
+
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
+import '../utils/responsive.dart';
 
 class QRDisplayHelper {
   /// Show QR code in a dialog
@@ -13,6 +16,9 @@ class QRDisplayHelper {
     showDialog(
       context: context,
       builder: (BuildContext context) {
+        final r = Responsive.of(context);
+        final media = MediaQuery.of(context);
+        final qrSize = math.min(300.0 * r.scale, media.size.width * 0.72);
         return AlertDialog(
           backgroundColor: AppTheme.primaryBg,
           title: Text(title),
@@ -25,20 +31,20 @@ class QRDisplayHelper {
                     subtitle,
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
-                  const SizedBox(height: 16),
+                  SizedBox(height: r.dp(16)),
                 ],
                 Container(
-                  padding: const EdgeInsets.all(16),
+                  padding: r.insetsAll(16),
                   decoration: BoxDecoration(
                     color: AppTheme.darkBg,
                     border: Border.all(color: AppTheme.borderDark),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: _buildQrImage(qrData, 300.0),
+                  child: _buildQrImage(qrData, qrSize),
                 ),
-                const SizedBox(height: 16),
+                SizedBox(height: r.dp(16)),
                 Container(
-                  padding: const EdgeInsets.all(12),
+                  padding: r.insetsAll(12),
                   decoration: BoxDecoration(
                     color: AppTheme.darkBg,
                     border: Border.all(color: AppTheme.borderDark),
@@ -85,15 +91,18 @@ class QRDisplayHelper {
   static Widget buildQRCode({
     required String data,
     double size = 200,
+    BuildContext? context,
   }) {
+    final scale = context == null ? 1.0 : Responsive.of(context).scale;
+    final scaledSize = size * scale;
     return Container(
-      padding: const EdgeInsets.all(8),
+      padding: EdgeInsets.all(8 * scale),
       decoration: BoxDecoration(
         color: AppTheme.darkBg,
         border: Border.all(color: AppTheme.borderDark),
         borderRadius: BorderRadius.circular(8),
       ),
-      child: _buildQrImage(data, size),
+      child: _buildQrImage(data, scaledSize),
     );
   }
 
@@ -103,38 +112,41 @@ class QRDisplayHelper {
     required String title,
     String? subtitle,
     double size = 150,
+    BuildContext? context,
   }) {
+    final scale = context == null ? 1.0 : Responsive.of(context).scale;
+    final scaledSize = size * scale;
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.all(16 * scale),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             if (title.isNotEmpty)
               Text(
                 title,
-                style: const TextStyle(
+                style: TextStyle(
                   fontWeight: FontWeight.bold,
-                  fontSize: 14,
+                  fontSize: 14 * scale,
                 ),
               ),
             if (subtitle != null) ...[
-              const SizedBox(height: 4),
+              SizedBox(height: 4 * scale),
               Text(
                 subtitle,
-                style: const TextStyle(
-                  fontSize: 12,
+                style: TextStyle(
+                  fontSize: 12 * scale,
                   color: AppTheme.textTertiary,
                 ),
               ),
             ],
-            const SizedBox(height: 12),
-            _buildQrImage(data, size),
-            const SizedBox(height: 12),
+            SizedBox(height: 12 * scale),
+            _buildQrImage(data, scaledSize),
+            SizedBox(height: 12 * scale),
             SelectableText(
               data,
-              style: const TextStyle(
-                fontSize: 10,
+              style: TextStyle(
+                fontSize: 10 * scale,
                 color: AppTheme.textTertiary,
               ),
             ),

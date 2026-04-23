@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/api_client.dart';
 import '../theme/app_theme.dart';
+import '../utils/responsive.dart';
 
 class EditAssetModal extends StatefulWidget {
   final Map<String, dynamic> asset;
@@ -119,31 +120,37 @@ class _EditAssetModalState extends State<EditAssetModal> {
 
   @override
   Widget build(BuildContext context) {
+    final r = Responsive.of(context);
     final media = MediaQuery.of(context);
     final compact = media.size.width < 600;
 
     return Dialog(
       backgroundColor: Colors.transparent,
       insetPadding: EdgeInsets.symmetric(
-        horizontal: compact ? 10 : 24,
-        vertical: compact ? 10 : 24,
+        horizontal: compact ? r.dp(10) : r.dp(24),
+        vertical: compact ? r.dp(10) : r.dp(24),
       ),
       child: ConstrainedBox(
         constraints: BoxConstraints(
-          maxWidth: compact ? media.size.width - 20 : 700,
+          maxWidth: compact ? media.size.width - r.dp(20) : r.dp(700),
           maxHeight: media.size.height * 0.92,
         ),
         child: Container(
           decoration: BoxDecoration(
             color: const Color(0xFF211339),
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(r.dp(18)),
             border: Border.all(color: AppTheme.borderDark),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Padding(
-                padding: const EdgeInsets.fromLTRB(18, 16, 12, 12),
+                padding: EdgeInsets.fromLTRB(
+                  r.dp(18),
+                  r.dp(16),
+                  r.dp(12),
+                  r.dp(12),
+                ),
                 child: Row(
                   children: [
                     Expanded(
@@ -167,15 +174,15 @@ class _EditAssetModalState extends State<EditAssetModal> {
               LimitedBox(
                 maxHeight: media.size.height * 0.65,
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(16),
+                  padding: r.insetsAll(16),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       if (error != null)
                         Container(
-                          margin: const EdgeInsets.only(bottom: 12),
-                          padding: const EdgeInsets.all(12),
+                          margin: EdgeInsets.only(bottom: r.dp(12)),
+                          padding: r.insetsAll(12),
                           decoration: BoxDecoration(
                             color: AppTheme.statusError.withOpacity(0.15),
                             borderRadius: BorderRadius.circular(8),
@@ -185,9 +192,9 @@ class _EditAssetModalState extends State<EditAssetModal> {
                           ),
                           child: Text(
                             error!,
-                            style: const TextStyle(
+                            style: TextStyle(
                               color: AppTheme.statusError,
-                              fontSize: 13,
+                              fontSize: r.sp(13),
                             ),
                           ),
                         ),
@@ -198,7 +205,7 @@ class _EditAssetModalState extends State<EditAssetModal> {
                               fontWeight: FontWeight.bold,
                             ),
                       ),
-                      const SizedBox(height: 12),
+                      SizedBox(height: r.dp(12)),
                       TextField(
                         controller: deviceNameController,
                         style: const TextStyle(color: AppTheme.textPrimary),
@@ -216,7 +223,7 @@ class _EditAssetModalState extends State<EditAssetModal> {
                               const TextStyle(color: AppTheme.textTertiary),
                         ),
                       ),
-                      const SizedBox(height: 12),
+                      SizedBox(height: r.dp(12)),
                       TextField(
                         controller: serialNumberController,
                         style: const TextStyle(color: AppTheme.textPrimary),
@@ -234,7 +241,7 @@ class _EditAssetModalState extends State<EditAssetModal> {
                               const TextStyle(color: AppTheme.textTertiary),
                         ),
                       ),
-                      const SizedBox(height: 12),
+                      SizedBox(height: r.dp(12)),
                       TextField(
                         controller: modelTypeController,
                         style: const TextStyle(color: AppTheme.textPrimary),
@@ -252,7 +259,7 @@ class _EditAssetModalState extends State<EditAssetModal> {
                               const TextStyle(color: AppTheme.textTertiary),
                         ),
                       ),
-                      const SizedBox(height: 16),
+                      SizedBox(height: r.dp(16)),
                       Text(
                         'Status & Condition',
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
@@ -260,7 +267,7 @@ class _EditAssetModalState extends State<EditAssetModal> {
                               fontWeight: FontWeight.bold,
                             ),
                       ),
-                      const SizedBox(height: 12),
+                      SizedBox(height: r.dp(12)),
                       DropdownButtonFormField<String>(
                         value: selectedStatus,
                         decoration: InputDecoration(
@@ -309,12 +316,12 @@ class _EditAssetModalState extends State<EditAssetModal> {
                           setState(() => selectedStatus = value);
                         },
                         dropdownColor: AppTheme.darkBg,
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: AppTheme.textPrimary,
-                          fontSize: 14,
+                          fontSize: r.sp(14),
                         ),
                       ),
-                      const SizedBox(height: 12),
+                      SizedBox(height: r.dp(12)),
                       DropdownButtonFormField<String>(
                         value: selectedCondition,
                         decoration: InputDecoration(
@@ -363,12 +370,12 @@ class _EditAssetModalState extends State<EditAssetModal> {
                           setState(() => selectedCondition = value);
                         },
                         dropdownColor: AppTheme.darkBg,
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: AppTheme.textPrimary,
-                          fontSize: 14,
+                          fontSize: r.sp(14),
                         ),
                       ),
-                      const SizedBox(height: 12),
+                      SizedBox(height: r.dp(12)),
                       TextField(
                         controller: selectedLocation != null
                             ? TextEditingController(text: selectedLocation)
@@ -390,7 +397,7 @@ class _EditAssetModalState extends State<EditAssetModal> {
                               const TextStyle(color: AppTheme.textTertiary),
                         ),
                       ),
-                      const SizedBox(height: 16),
+                      SizedBox(height: r.dp(16)),
                       Text(
                         'Additional Info',
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
@@ -398,7 +405,7 @@ class _EditAssetModalState extends State<EditAssetModal> {
                               fontWeight: FontWeight.bold,
                             ),
                       ),
-                      const SizedBox(height: 12),
+                      SizedBox(height: r.dp(12)),
                       TextField(
                         controller: descriptionController,
                         maxLines: 3,
@@ -417,7 +424,7 @@ class _EditAssetModalState extends State<EditAssetModal> {
                               const TextStyle(color: AppTheme.textTertiary),
                         ),
                       ),
-                      const SizedBox(height: 12),
+                      SizedBox(height: r.dp(12)),
                       TextField(
                         controller: notesController,
                         maxLines: 3,
@@ -442,7 +449,7 @@ class _EditAssetModalState extends State<EditAssetModal> {
               ),
               const Divider(height: 1, color: AppTheme.borderDark),
               Padding(
-                padding: const EdgeInsets.all(16),
+                padding: r.insetsAll(16),
                 child: Row(
                   children: [
                     Expanded(
@@ -451,7 +458,7 @@ class _EditAssetModalState extends State<EditAssetModal> {
                         child: const Text('Cancel'),
                       ),
                     ),
-                    const SizedBox(width: 10),
+                    SizedBox(width: r.dp(10)),
                     Expanded(
                       child: ElevatedButton(
                         onPressed: isLoading ? null : _saveAsset,

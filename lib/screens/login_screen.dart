@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../theme/app_theme.dart';
 import '../providers/auth_provider.dart';
+import '../utils/responsive.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({Key? key}) : super(key: key);
@@ -11,15 +12,11 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
+  final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _showPassword = false;
-  String? _validationError;
-
-  @override
-  void initState() {
-    super.initState();
-  }
+  bool _submitted = false;
 
   @override
   void dispose() {
@@ -28,69 +25,48 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  bool _isValidEmail(String email) {
-    // Simple pragmatic email check.
-    final regex = RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$');
-    return regex.hasMatch(email);
+  bool _looksLikeEmail(String value) {
+    final trimmed = value.trim();
+    final emailRegex = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
+    return emailRegex.hasMatch(trimmed);
   }
 
   void _handleLogin(AuthProvider authProvider) async {
-    final email = _emailController.text.trim();
-    final password = _passwordController.text;
+    setState(() => _submitted = true);
+    final ok = _formKey.currentState?.validate() ?? false;
+    if (!ok) return;
 
-    setState(() => _validationError = null);
-
-    if (email.isEmpty) {
-      setState(() => _validationError = 'Email is required');
-      return;
-    }
-    if (!_isValidEmail(email)) {
-      setState(() => _validationError = 'Enter a valid email address');
-      return;
-    }
-    if (password.isEmpty) {
-      setState(() => _validationError = 'Password is required');
-      return;
-    }
-    if (password.length < 6) {
-      setState(() => _validationError = 'Password must be at least 6 characters');
-      return;
-    }
-
-    // Clear any previous API errors once user retries.
-    authProvider.clearError();
-
-    final success = await authProvider.login(email, password);
+    final success = await authProvider.login(
+      _emailController.text.trim(),
+      _passwordController.text,
+    );
 
     if (success) {
       if (mounted) {
         Navigator.of(context).pushReplacementNamed('/home');
       }
-      return;
-    }
-
-    if (!mounted) return;
-    // Keep error display area consistent even if provider error is null.
-    if (authProvider.error == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Login failed')),
-      );
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final r = Responsive.of(context);
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: Consumer<AuthProvider>(
         builder: (context, authProvider, child) {
           return SafeArea(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
+              padding: r.insetsAll(24),
+              child: Form(
+                key: _formKey,
+                autovalidateMode: _submitted
+                    ? AutovalidateMode.onUserInteraction
+                    : AutovalidateMode.disabled,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
                   SizedBox(height: MediaQuery.of(context).size.height * 0.1),
                   // Logo/Title
                   Center(
@@ -100,9 +76,9 @@ class _LoginScreenState extends State<LoginScreen> {
                           '📦',
                           style: Theme.of(context).textTheme.displayLarge,
                         ),
-                        const SizedBox(height: 16),
+                        SizedBox(height: r.dp(16)),
                         Text(
-                          'Infini-Stock',
+                          'InfoTrack',
                           style: Theme.of(context)
                               .textTheme
                               .headlineLarge
@@ -111,7 +87,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                 fontWeight: FontWeight.bold,
                               ),
                         ),
-                        const SizedBox(height: 8),
+                        SizedBox(height: r.dp(8)),
                         Text(
                           'Asset Tracking & Inventory',
                           style: Theme.of(context).textTheme.bodySmall,
@@ -121,7 +97,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   SizedBox(height: MediaQuery.of(context).size.height * 0.05),
                   // Email Input
-                  TextField(
+                  TextFormField(
                     controller: _emailController,
                     decoration: InputDecoration(
                       hintText: 'Email',
@@ -130,10 +106,16 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     keyboardType: TextInputType.emailAddress,
                     style: const TextStyle(color: AppTheme.textPrimary),
+                    validator: (value) {
+                      final v = (value ?? '').trim();
+                      if (v.isEmpty) return 'Email is required';
+                      if (!_looksLikeEmail(v)) return 'Enter a valid email';
+                      return null;
+                    },
                   ),
-                  const SizedBox(height: 16),
+                  SizedBox(height: r.dp(16)),
                   // Password Input
-                  TextField(
+                  TextFormField(
                     controller: _passwordController,
                     decoration: InputDecoration(
                       hintText: 'Password',
@@ -152,13 +134,18 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     obscureText: !_showPassword,
                     style: const TextStyle(color: AppTheme.textPrimary),
+                    validator: (value) {
+                      final v = value ?? '';
+                      if (v.isEmpty) return 'Password is required';
+                      if (v.length < 6) return 'Password must be 6+ characters';
+                      return null;
+                    },
                   ),
-                  const SizedBox(height: 16),
-                  const SizedBox(height: 24),
+                  SizedBox(height: r.dp(24)),
                   // Error Message
-                  if (_validationError != null || authProvider.error != null)
+                  if (authProvider.error != null)
                     Container(
-                      padding: const EdgeInsets.all(12),
+                      padding: r.insetsAll(12),
                       decoration: BoxDecoration(
                         color: AppTheme.statusError.withOpacity(0.1),
                         border: Border.all(color: AppTheme.statusError),
@@ -170,28 +157,27 @@ class _LoginScreenState extends State<LoginScreen> {
                             Icons.error_outline,
                             color: AppTheme.statusError,
                           ),
-                          const SizedBox(width: 12),
+                          SizedBox(width: r.dp(12)),
                           Expanded(
                             child: Text(
-                              (_validationError ?? authProvider.error) ??
-                                  'Login failed',
-                              style: const TextStyle(
+                              authProvider.error!,
+                              style: TextStyle(
                                 color: AppTheme.statusError,
-                                fontSize: 12,
+                                fontSize: r.sp(12),
                               ),
                             ),
                           ),
                         ],
                       ),
                     ),
-                  const SizedBox(height: 24),
+                  SizedBox(height: r.dp(24)),
                   // Login Button
                   ElevatedButton(
                     onPressed: authProvider.isLoading
                         ? null
                         : () => _handleLogin(authProvider),
                     style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      padding: EdgeInsets.symmetric(vertical: r.dp(16)),
                     ),
                     child: authProvider.isLoading
                         ? const SizedBox(
@@ -206,7 +192,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           )
                         : const Text('Sign In'),
                   ),
-                  const SizedBox(height: 24),
+                  SizedBox(height: r.dp(24)),
                   // Footer
                   Center(
                     child: Text(
@@ -214,7 +200,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
                   ),
-                  const SizedBox(height: 16),
+                  SizedBox(height: r.dp(16)),
                   Center(
                     child: Text(
                       'v1.0.0',
@@ -223,7 +209,8 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                     ),
                   ),
-                ],
+                  ],
+                ),
               ),
             ),
           );
